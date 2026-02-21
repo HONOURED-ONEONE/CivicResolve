@@ -1,0 +1,32 @@
+{
+  "automationId": "6999d106f9e774801b921d58",
+  "automationName": "Unnamed Automation",
+  "version": "v2",
+  "mode": "multi-file",
+  "dependencies": [
+    {
+      "id": "1771689661875_7",
+      "name": "Pillow",
+      "version": "latest"
+    },
+    {
+      "id": "1771689661875_8",
+      "name": "piexif",
+      "version": "latest"
+    },
+    {
+      "id": "1771689661875_9",
+      "name": "qrcode",
+      "version": "latest"
+    }
+  ],
+  "environmentVariables": [
+    "INTAKE_DATA_JSON",
+    "VALIDATED_INTAKE_JSON",
+    "PHOTO_PATHS",
+    "NORMALIZED_INPUTS_JSON",
+    "QR_INPUT_JSON",
+    "QR_OUTPUT_FILE"
+  ],
+  "syncedAt": "2026-02-21T16:24:52.198Z"
+}
