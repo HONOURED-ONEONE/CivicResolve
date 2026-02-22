@@ -1,32 +1,29 @@
 {
   "automationId": "6999d106f9e774801b921d58",
   "automationName": "Unnamed Automation",
-  "version": "v2",
+  "version": "v5",
   "mode": "multi-file",
   "dependencies": [
     {
-      "id": "1771689661875_7",
-      "name": "Pillow",
-      "version": "latest"
-    },
-    {
-      "id": "1771689661875_8",
-      "name": "piexif",
-      "version": "latest"
-    },
-    {
-      "id": "1771689661875_9",
-      "name": "qrcode",
+      "id": "1771770925333_14",
+      "name": "axios",
       "version": "latest"
     }
   ],
   "environmentVariables": [
-    "INTAKE_DATA_JSON",
-    "VALIDATED_INTAKE_JSON",
-    "PHOTO_PATHS",
-    "NORMALIZED_INPUTS_JSON",
-    "QR_INPUT_JSON",
-    "QR_OUTPUT_FILE"
+    "SIDECAR_BASE_URL",
+    "MEPP_INPUT_JSON",
+    "NOTIFY_WEBHOOK",
+    "SLA_REMINDER_SECONDS",
+    "SLA_DEADLINE_SECONDS",
+    "POLL_INTERVAL_SECONDS",
+    "SLA_MAX_POLL_ITERS",
+    "ALERTS_ENDPOINT",
+    "URGENT_TERMS",
+    "CITY_NAME",
+    "GEO_TERMS",
+    "KEYWORDS",
+    "MAX_RESULTS"
   ],
-  "syncedAt": "2026-02-21T16:24:52.198Z"
+  "syncedAt": "2026-02-22T15:15:24.171Z"
 }
