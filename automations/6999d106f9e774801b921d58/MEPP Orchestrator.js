@@ -9,6 +9,56 @@ function safeParse(json, fallback) {
   }
 }
 
+function normalizeBaseUrl(url) {
+  let norm = (url || "").trim()
+  const orig = norm
+  while (norm.endsWith("/")) norm = norm.slice(0, -1)
+  if (orig !== norm) {
+    console.warn(`[WARN] SIDECAR_BASE_URL normalized (trailing slash removed): '${orig}' → '${norm}'`)
+  }
+  return norm
+}
+
+function joinEndpoint(base, path) {
+  let b = (base || "").trim()
+  let p = (path || "").replace(/^\/+/, "")
+  let joined = `${b}/${p}`
+  // Protocol safe: replace all multiple slashes with a single slash, except after 'http(s):'
+  // Example: 'https://example.com//' + '/dedupe' -> 'https://example.com/dedupe'
+  joined = joined.replace(/([^:])\/+/g, "$1/")
+  // If still any double slash remains (excluding protocol), warn and auto-correct
+  const protocolMatch = joined.match(/^(https?:\/\/[\w.-]+)(.*)$/)
+  if (protocolMatch) {
+    const [, proto, rest] = protocolMatch
+    if (/\/\//.test(rest)) {
+      console.warn(`[WARN] Malformed URL detected (doubleslash after protocol): '${joined}'. Auto-corrected.`)
+      joined = proto + rest.replace(/\/\//g, "/")
+    }
+  }
+  return joined
+}
+
+async function robustAxios(method, url, payload = undefined) {
+  const start = Date.now()
+  try {
+    let res
+    if (method === "POST") {
+      res = await axios.post(url, payload)
+    } else if (method === "GET") {
+      res = await axios.get(url)
+    } else {
+      throw new Error("Unsupported method")
+    }
+    const latency = Date.now() - start
+    console.log(`[HTTP] ${method} ${url} status=${res.status} latency_ms=${latency}`)
+    return res
+  } catch (e) {
+    const latency = Date.now() - start
+    console.error(`[HTTP] ${method} ${url} ERROR (${e?.response?.status || e.message}) latency_ms=${latency}`)
+    throw e
+  }
+}
+
 ;(async () => {
   // ENV summary
   const envKeys = ["SIDECAR_BASE_URL", "NOTIFY_WEBHOOK", "MEPP_INPUT_JSON", "SLA_REMINDER_SECONDS", "SLA_DEADLINE_SECONDS", "POLL_INTERVAL_SECONDS", "SLA_MAX_POLL_ITERS", "SLA_PROFILES_JSON", "ALERTS_ENDPOINT", "URGENT_TERMS"]
@@ -19,13 +69,14 @@ function safeParse(json, fallback) {
     process.exit(1)
   }
 
-  // Intake strict normalization
+  const BASE_URL = normalizeBaseUrl(process.env.SIDECAR_BASE_URL)
+
+  // ... The rest of the code remains unchanged ...
+
   let MEPP = process.env.MEPP_INPUT_JSON ? safeParse(process.env.MEPP_INPUT_JSON, null) : null
   if (!MEPP || typeof MEPP != "object") MEPP = {}
-  MEPP.issue = MEPP.issue || {}
-  ;["summary", "details", "category"].forEach(k => (MEPP.issue[k] = typeof MEPP.issue[k] === "string" ? MEPP.issue[k] : ""))
-  MEPP.location = MEPP.location || {}
-  ;["address_text", "ward"].forEach(k => (MEPP.location[k] = typeof MEPP.location[k] === "string" ? MEPP.location[k] : ""))
+  MEPP.issue = MEPP.issue || {}[("summary", "details", "category")].forEach(k => (MEPP.issue[k] = typeof MEPP.issue[k] === "string" ? MEPP.issue[k] : ""))
+  MEPP.location = MEPP.location || {}[("address_text", "ward")].forEach(k => (MEPP.location[k] = typeof MEPP.location[k] === "string" ? MEPP.location[k] : ""))
   MEPP.location.lat = typeof MEPP.location.lat == "number" ? MEPP.location.lat : null
   MEPP.location.lon = typeof MEPP.location.lon == "number" ? MEPP.location.lon : null
   MEPP.evidence = MEPP.evidence || {}
@@ -36,8 +87,11 @@ function safeParse(json, fallback) {
 
   // Idempotency LOG ONLY
   const idemKey = MEPP.provenance.raw_id && MEPP.provenance.channel ? `${MEPP.provenance.raw_id}:${MEPP.provenance.channel}` : null
-  if (idemKey) console.log(`[Idempotency] Key: ${idemKey}`)
-  else console.log("[Idempotency] Could not construct key")
+  if (MEPP.provenance.channel) {
+    if (idemKey) console.log(`[Idempotency] Key: ${idemKey}`)
+  } else {
+    console.log("[Idempotency] channel missing; key not constructed.")
+  }
 
   // Urgent fast-path
   let urgentMatched = null
@@ -60,7 +114,7 @@ function safeParse(json, fallback) {
             evidence: { links: MEPP.evidence.photos },
             status: "PUBLIC_INTEREST_ALERT"
           }
-          const res = await axios.post(process.env.ALERTS_ENDPOINT, alertPayload)
+          const res = await robustAxios("POST", process.env.ALERTS_ENDPOINT, alertPayload)
           console.log(`[FAST-PATH] URGENT '${t}' matched, POST = ${res.status}`)
         } catch (e) {
           console.log(`[FAST-PATH] URGENT '${t}' matched, POST FAILED (${e?.response?.status || e.message})`)
@@ -79,7 +133,8 @@ function safeParse(json, fallback) {
   // --- Sidecar: dedupe ---
   let duplicate_of = null
   try {
-    const deRes = await axios.post(`${process.env.SIDECAR_BASE_URL}/dedupe`, { mepp: MEPP })
+    const dedupeUrl = joinEndpoint(BASE_URL, "/dedupe")
+    const deRes = await robustAxios("POST", dedupeUrl, { mepp: MEPP })
     duplicate_of = deRes?.data?.duplicate_of || null
     if (duplicate_of) {
       console.log(`[DEDUPLICATE] Known duplicate of ${duplicate_of}. Exiting 0.`)
@@ -95,12 +150,12 @@ function safeParse(json, fallback) {
     hint = null,
     credibilityStatus = "OK"
   try {
-    const scRes = await axios.post(`${process.env.SIDECAR_BASE_URL}/score`, { mepp: MEPP })
+    const scoreUrl = joinEndpoint(BASE_URL, "/score")
+    const scRes = await robustAxios("POST", scoreUrl, { mepp: MEPP })
     score = typeof scRes?.data?.score == "number" ? scRes.data.score : null
     hint = typeof scRes?.data?.hint === "string" ? scRes.data.hint : undefined
     if (score === null || score < 0.65) {
       credibilityStatus = "needs_info"
-      // Minimum JSON OUT per schema:
       const out = {
         case_id: idemKey || uuidv4(),
         status: "needs_info",
@@ -111,6 +166,7 @@ function safeParse(json, fallback) {
       }
       console.log(JSON.stringify(out, null, 2))
       console.log("Runbook: Filing BLOCKED (credibility/needs_info).")
+      console.log("[CREDIBILITY] needs_info → provide 2 photos + address_text in MEPP_INPUT_JSON to proceed.")
       process.exit(0)
     }
   } catch (e) {
@@ -121,7 +177,8 @@ function safeParse(json, fallback) {
   // --- Sidecar: route ---
   let routing = { dest: "", confidence: 0, basis: [] }
   try {
-    const routeRes = await axios.post(`${process.env.SIDECAR_BASE_URL}/route`, { mepp: MEPP })
+    const routeUrl = joinEndpoint(BASE_URL, "/route")
+    const routeRes = await robustAxios("POST", routeUrl, { mepp: MEPP })
     routing.dest = typeof routeRes?.data?.dest === "string" ? routeRes.data.dest : ""
     routing.confidence = typeof routeRes?.data?.confidence === "number" ? routeRes.data.confidence : 0
     routing.basis = Array.isArray(routeRes?.data?.basis) ? routeRes.data.basis : []
@@ -166,7 +223,8 @@ function safeParse(json, fallback) {
     escalated = false
   for (let pollIter = 1; pollIter <= pollCap; pollIter++) {
     try {
-      const statusRes = await axios.get(`${process.env.SIDECAR_BASE_URL}/simulate_ulb_status?ticket_id=${ticket_id}`)
+      const pollUrl = joinEndpoint(BASE_URL, "/simulate_ulb_status?ticket_id=" + ticket_id)
+      const statusRes = await robustAxios("GET", pollUrl)
       status = statusRes?.data?.status || status
     } catch (e) {
       console.log(`[Polling] Error at iter ${pollIter}: ${e.message}`)
@@ -181,7 +239,7 @@ function safeParse(json, fallback) {
       if (!escalated && process.env.NOTIFY_WEBHOOK) {
         escalated = true
         try {
-          const escRes = await axios.post(process.env.NOTIFY_WEBHOOK, {
+          const escRes = await robustAxios("POST", process.env.NOTIFY_WEBHOOK, {
             case_id: idemKey || uuidv4(),
             ticket_id,
             artifact_url,
@@ -195,7 +253,7 @@ function safeParse(json, fallback) {
           console.log(`[ESCALATE] Webhook POST failed: ${e?.response?.status || e.message}`)
         }
       } else if (elapsed > deadline && !escalated) {
-        console.log("[ESCALATE] skipped/escalated")
+        console.log("Escalation skipped: webhook not configured")
       }
       break
     }
