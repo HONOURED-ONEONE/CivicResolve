@@ -1,0 +1,36 @@
+{
+  "automationId": "6999d106f9e774801b921d58",
+  "automationName": "Unnamed Automation",
+  "version": "v6",
+  "mode": "multi-file",
+  "dependencies": [
+    {
+      "id": "1771775551091_16",
+      "name": "axios",
+      "version": "latest"
+    },
+    {
+      "id": "1771775551091_17",
+      "name": "uuid",
+      "version": "latest"
+    }
+  ],
+  "environmentVariables": [
+    "SIDECAR_BASE_URL",
+    "NOTIFY_WEBHOOK",
+    "MEPP_INPUT_JSON",
+    "SLA_REMINDER_SECONDS",
+    "SLA_DEADLINE_SECONDS",
+    "POLL_INTERVAL_SECONDS",
+    "SLA_MAX_POLL_ITERS",
+    "SLA_PROFILES_JSON",
+    "CITY_NAME",
+    "GEO_TERMS",
+    "KEYWORDS",
+    "MAX_RESULTS",
+    "ALERTS_ENDPOINT",
+    "URGENT_TERMS",
+    "DISCOVERY_THROTTLE_MS"
+  ],
+  "syncedAt": "2026-02-22T17:12:44.785Z"
+}
