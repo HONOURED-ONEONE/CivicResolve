@@ -47,16 +47,29 @@ function safeParse(json, fallback) {
           raw_id: `DEMO-${uuidv4()}`
         }
       }
+  // Normalize all input fields to safe fallbacks
+  MEPP.issue = MEPP.issue || {}
+  MEPP.issue.summary = MEPP.issue.summary || ""
+  MEPP.issue.details = MEPP.issue.details || ""
+  MEPP.issue.category = MEPP.issue.category || ""
+  MEPP.location = MEPP.location || {}
+  MEPP.location.lat = MEPP.location.lat != null ? MEPP.location.lat : null
+  MEPP.location.lon = MEPP.location.lon != null ? MEPP.location.lon : null
+  MEPP.location.address_text = MEPP.location.address_text || ""
+  MEPP.location.ward = MEPP.location.ward || ""
+  MEPP.evidence = MEPP.evidence || {}
+  MEPP.evidence.photos = Array.isArray(MEPP.evidence.photos) ? MEPP.evidence.photos : []
+  MEPP.provenance = MEPP.provenance || {}
+  MEPP.provenance.channel = MEPP.provenance.channel || ""
+  MEPP.provenance.raw_id = MEPP.provenance.raw_id || `DEMO-${uuidv4()}`
   console.log(process.env.MEPP_INPUT_JSON ? "MEPP Input: override from env used." : "MEPP Input: demo payload constructed.")
 
   // --- Idempotency ---
   const idemKey = MEPP?.provenance?.raw_id && MEPP?.provenance?.channel ? `${MEPP.provenance.raw_id}:${MEPP.provenance.channel}` : null
-  const idemSet = idemKey ? new Set([idemKey]) : null
-  if (idemKey && idemSet.has(idemKey)) {
-    console.log(`Idempotency: case ${idemKey} seen (in-run only); continuing...`)
-  }
-  if (!idemKey) {
-    console.log("Idempotency: information not present in payload; handling as non-idempotent.")
+  if (idemKey) {
+    console.log(`[Idempotency] Idem key: ${idemKey}`)
+  } else {
+    console.log("[Idempotency] No idemKey could be constructed; running non-idempotent.")
   }
 
   // --- Urgent Hazard Fast-Path ---
@@ -78,16 +91,10 @@ function safeParse(json, fallback) {
         status: "PUBLIC_INTEREST_ALERT"
       }
       try {
-        axios
-          .post(process.env.ALERTS_ENDPOINT, alertPayload)
-          .then(() => {
-            console.log("Urgent alert posted to ALERTS_ENDPOINT.")
-          })
-          .catch(e => {
-            console.log("Urgent alert post failed:", e?.response?.status || e.message)
-          })
+        const urgentRes = await axios.post(process.env.ALERTS_ENDPOINT, alertPayload)
+        console.log("Urgent alert posted to ALERTS_ENDPOINT.", urgentRes.status)
       } catch (e) {
-        console.log("URGENT alert error:", e.message)
+        console.log("Urgent alert post failed:", e?.response?.status || e.message)
       }
     }
   }
@@ -99,8 +106,8 @@ function safeParse(json, fallback) {
   try {
     const deRes = await axios.post(`${process.env.SIDECAR_BASE_URL}/dedupe`, { mepp: MEPP })
     duplicate_of = deRes?.data?.duplicate_of || null
-    similarity = deRes?.data?.similarity
-    distance_km = deRes?.data?.distance_km
+    similarity = deRes?.data?.similarity != null ? deRes.data.similarity : null
+    distance_km = deRes?.data?.distance_km != null ? deRes.data.distance_km : null
     console.log(`Dedupe check: duplicate_of=${duplicate_of}, similarity=${similarity}, distance_km=${distance_km}`)
     if (duplicate_of) {
       console.log(`Known duplicate of ${duplicate_of}; exiting.`)
@@ -117,20 +124,20 @@ function safeParse(json, fallback) {
     credibilityStatus = "OK"
   try {
     const scRes = await axios.post(`${process.env.SIDECAR_BASE_URL}/score`, { mepp: MEPP })
-    score = scRes?.data?.score
-    hint = scRes?.data?.hint
+    score = typeof scRes?.data?.score === "number" ? scRes.data.score : null
+    hint = scRes?.data?.hint || ""
     console.log(`Credibility: score=${score}, hint=${hint}`)
-    if (score < 0.65) {
-      credibilityStatus = "NEEDS_INFO"
+    if (score < 0.65 || score === null) {
+      credibilityStatus = "needs_info"
       const out = {
         case_id: idemKey || uuidv4(),
-        credibility: { score, status: credibilityStatus },
+        credibility: { score: score || 0, status: credibilityStatus },
         routing: {},
         sla: {},
         timestamp: new Date().toISOString()
       }
       console.log(JSON.stringify(out, null, 2))
-      console.log("Runbook: Blocked for needs_info (score < 0.65); exit 0.")
+      console.log("Runbook: Blocked for needs_info (score < 0.65 or missing); exit 0.")
       process.exit(0)
     }
   } catch (e) {
@@ -144,10 +151,10 @@ function safeParse(json, fallback) {
     const routeRes = await axios.post(`${process.env.SIDECAR_BASE_URL}/route`, { mepp: MEPP })
     routing = {
       dest: routeRes?.data?.dest || "",
-      confidence: routeRes?.data?.confidence || 0,
+      confidence: typeof routeRes?.data?.confidence === "number" ? routeRes.data.confidence : 0,
       basis: Array.isArray(routeRes?.data?.basis) ? routeRes.data.basis : []
     }
-    console.log(`Routing: dest=${routing.dest}, confidence=${routing.confidence} (${routing.basis.slice(0, 2).join(";")})`)
+    console.log(`Routing: dest=${routing.dest}, confidence=${routing.confidence} (${(routing.basis || []).slice(0, 2).join(";")})`)
   } catch (e) {
     console.error(`Routing API error: ${e.message}`)
     process.exit(1)
@@ -164,18 +171,18 @@ function safeParse(json, fallback) {
   let expected_update_by = null
   const now = Date.now()
   const slaProfiles = process.env.SLA_PROFILES_JSON ? safeParse(process.env.SLA_PROFILES_JSON, {}) : {}
-  if (slaProfiles[routing.dest]) {
+  if (routing.dest && slaProfiles[routing.dest]) {
     reminder = Number(slaProfiles[routing.dest]?.reminder) || reminder
     deadline = Number(slaProfiles[routing.dest]?.deadline) || deadline
-    console.log(`SLA: Using dest-specific SLA profile for ${routing.dest}.`)
+    console.log(`[SLA PROFILE] Using dest-specific SLA profile for ${routing.dest}. reminder=${reminder}, deadline=${deadline}`)
   } else if (slaProfiles["default"]) {
     reminder = Number(slaProfiles["default"]?.reminder) || reminder
     deadline = Number(slaProfiles["default"]?.deadline) || deadline
-    console.log("SLA: Using default SLA profile.")
+    console.log("[SLA PROFILE] Using default SLA profile.")
   } else {
     reminder = Number(process.env.SLA_REMINDER_SECONDS) || 420
     deadline = Number(process.env.SLA_DEADLINE_SECONDS) || 1260
-    console.log("SLA: Using global defaults.")
+    console.log("[SLA PROFILE] Using global defaults.")
   }
   expected_update_by = new Date(now + deadline * 1000).toISOString()
   const pollInterval = Number(process.env.POLL_INTERVAL_SECONDS) || 30
@@ -189,13 +196,13 @@ function safeParse(json, fallback) {
       const statusRes = await axios.get(`${process.env.SIDECAR_BASE_URL}/simulate_ulb_status?ticket_id=${ticket_id}`)
       status = statusRes?.data?.status || status
     } catch (e) {
-      console.log(`Polling error at iter ${pollIter}: ${e.message}`)
+      console.log(`[Polling] Error at iter ${pollIter}: ${e.message}`)
     }
     const elapsed = Math.floor((Date.now() - now) / 1000)
     console.log(`[Polling] Iter=${pollIter}/${pollCap} status=${status} elapsed_s=${elapsed}`)
     if (elapsed > reminder && !reminded) {
       reminded = true
-      console.log("[SLA] Reminder threshold crossed (demo).")
+      console.log(`[SLA] Reminder threshold crossed at ${elapsed}s.`)
     }
     if (elapsed > deadline) {
       if (!escalated && process.env.NOTIFY_WEBHOOK) {
@@ -210,13 +217,13 @@ function safeParse(json, fallback) {
           timestamp: new Date().toISOString()
         }
         try {
-          await axios.post(process.env.NOTIFY_WEBHOOK, payload)
-          console.log("Escalation webhook POSTed.")
+          const escRes = await axios.post(process.env.NOTIFY_WEBHOOK, payload)
+          console.log(`[Escalation] Webhook POSTed, status: ${escRes.status}`)
         } catch (e) {
-          console.log("Escalation POST failed:", e?.response?.status || e.message)
+          console.log(`[Escalation] POST failed: ${e?.response?.status || e.message}`)
         }
       } else {
-        console.log("Escalation: webhook not configured. Breaking SLA polling loop.")
+        console.log(`Escalation: webhook not configured or already escalated, breaking SLA polling loop at ${elapsed}s.`)
       }
       break
     }
@@ -226,19 +233,19 @@ function safeParse(json, fallback) {
   // --- Output JSON ---
   const out = {
     case_id: idemKey || uuidv4(),
-    credibility: { score, status: credibilityStatus },
-    routing: routing,
+    credibility: { score: score || 0, status: credibilityStatus || "" },
+    routing: routing || { dest: "", confidence: 0, basis: [] },
     sla: {
-      ticket_id,
-      status,
-      artifact_url,
-      expected_update_by
+      ticket_id: ticket_id || "",
+      status: status || "",
+      artifact_url: artifact_url || "",
+      expected_update_by: expected_update_by || ""
     },
     timestamp: new Date().toISOString()
   }
   console.log(JSON.stringify(out, null, 2))
   // --- Runbook Summary ---
   console.log("Runbook:")
-  console.log(`Case ${out.case_id}\n` + `Issue: ${MEPP.issue.summary} | Ward: ${MEPP.location.ward || ""}/${MEPP.location.address_text || ""}\n` + `Routing: ${routing.dest} (${routing.confidence}, basis: ${(routing.basis || []).slice(0, 2).join("; ")})\n` + `SLA: ${status} | Ticket: ${ticket_id} | UpdateBy: ${expected_update_by}\n` + `Reminder sent: ${reminded ? "Y" : "N"} | Escalated: ${escalated ? "Y" : "N"}`)
+  console.log(`Case ${out.case_id}\n` + `Issue: ${MEPP.issue.summary} | Ward: ${MEPP.location.ward || ""}/${MEPP.location.address_text || ""}\n` + `Routing: ${routing.dest || ""} (${routing.confidence}, basis: ${(routing.basis || []).slice(0, 2).join("; ")})\n` + `SLA: ${status || ""} | Ticket: ${ticket_id || ""} | UpdateBy: ${expected_update_by || ""}\n` + `Reminder sent: ${reminded ? "Y" : "N"} | Escalated: ${escalated ? "Y" : "N"}`)
   process.exit(0)
 })()
