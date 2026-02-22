@@ -1,3 +1,4 @@
+from runtime import getContext, setContext
 import logging
 import hashlib
 from typing import Dict, Any
@@ -31,4 +32,5 @@ if __name__ == "__main__":
         logging.error(f'Failed to parse normalized input: {e}')
         norm_data = {}
     case_id = generate_case_id(norm_data)
+    setContext('CASE_ID', case_id)
     print(json.dumps({'case_id': case_id}))

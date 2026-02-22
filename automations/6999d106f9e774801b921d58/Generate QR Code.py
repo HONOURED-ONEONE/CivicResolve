@@ -1,10 +1,9 @@
+from runtime import getContext, setContext
 import logging
 import os
 import json
 import qrcode
 from typing import Dict, Any
-
-logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
 
 def generate_qr_code(data: Dict[str, Any], output_file: str = 'qr_code.png') -> str:
     """
@@ -36,4 +35,5 @@ if __name__ == "__main__":
         logging.error(f'Failed to parse QR input JSON: {e}')
         qr_dict = {}
     fpath = generate_qr_code(qr_dict, OUTPUT_FILE)
+    setContext('QR_PATH', fpath)
     print(json.dumps({'qr_code_path': fpath}))
