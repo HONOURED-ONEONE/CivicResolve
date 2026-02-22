@@ -1,4 +1,8 @@
 
+## Deployment
+
+This project uses a `.python-version` file to pin the Python runtime to **3.12.8** for Railway/railpack/mise compatibility. This ensures deterministic builds and avoids compilation issues with `pydantic-core`.
+
 ## Quick Tests
 
 The sidecar now supports path normalization (e.g., `//dedupe` -> `/dedupe`) and CORS preflight for `OPTIONS`.
