@@ -3,6 +3,7 @@ import time
 import uuid
 import logging
 import json
+import re
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -29,13 +30,26 @@ app = FastAPI(
     description="Helper service for CivicResolve orchestration."
 )
 
+@app.on_event("startup")
+async def startup_event():
+    logger.info(f"Starting Sidecar. CORS_ALLOW_ORIGINS={CORS_ALLOW_ORIGINS}")
+    if API_KEY:
+        masked_key = API_KEY[:4] + "*" * (len(API_KEY) - 4) if len(API_KEY) > 4 else "****"
+        logger.info(f"API_KEY is set: {masked_key}")
+    else:
+        logger.warning("API_KEY is not set.")
+
 # --- Middleware ---
 # Note: Middleware is added LIFO. The last added middleware is the first to execute.
-# We want: CORS -> Logging -> Auth -> App
-# So we add in order: Auth, then Logging, then CORS.
+# We want: CORS -> Logging -> Path Normalization -> Auth -> App
+# So we add in order: Auth, then Normalization, then Logging, then CORS.
 
 @app.middleware("http")
 async def auth_middleware(request: Request, call_next):
+    # Fix B: Allow OPTIONS (CORS preflight) without API key
+    if request.method == "OPTIONS":
+        return await call_next(request)
+
     # Skip auth for health and version
     # Normalize path to ignore trailing slash if needed, but standardizing on strict for now
     path = request.url.path.rstrip("/")
@@ -50,6 +64,13 @@ async def auth_middleware(request: Request, call_next):
                 content={"detail": "Invalid or missing API Key"}
             )
             
+    return await call_next(request)
+
+@app.middleware("http")
+async def normalize_path_middleware(request: Request, call_next):
+    # Fix A: Normalize double slashes
+    if "//" in request.url.path:
+        request.scope["path"] = re.sub('/+', '/', request.url.path)
     return await call_next(request)
 
 @app.middleware("http")

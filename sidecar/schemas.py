@@ -12,14 +12,14 @@ class MEPP(BaseModel):
     version: str = "1.0"
     case_id: Optional[str] = None
     created_at: Optional[str] = None
-    reporter: Dict = {}
-    issue: Dict = {}
-    evidence: Dict = {}
-    location: Dict = {}
-    credibility: Dict = {}
-    routing: Dict = {}
-    sla: Dict = {}
-    provenance: Dict = {}
+    reporter: Dict = Field(default_factory=dict)
+    issue: Dict = Field(default_factory=dict)
+    evidence: Dict = Field(default_factory=dict)
+    location: Dict = Field(default_factory=dict)
+    credibility: Dict = Field(default_factory=dict)
+    routing: Dict = Field(default_factory=dict)
+    sla: Dict = Field(default_factory=dict)
+    provenance: Dict = Field(default_factory=dict)
 
 class DedupeReq(BaseModel):
     mepp: MEPP
