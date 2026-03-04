@@ -1,24 +1,24 @@
 {
   "automationId": "6999d106f9e774801b921d58",
   "automationName": "Unnamed Automation",
-  "version": "v7",
+  "version": "v8",
   "mode": "multi-file",
   "dependencies": [
     {
-      "id": "1771782550947_16",
+      "id": "1771783782440_16",
       "name": "axios",
       "version": "latest"
     },
     {
-      "id": "1771782550947_17",
+      "id": "1771783782440_17",
       "name": "uuid",
       "version": "latest"
     }
   ],
   "environmentVariables": [
     "SIDECAR_BASE_URL",
-    "MEPP_INPUT_JSON",
     "NOTIFY_WEBHOOK",
+    "MEPP_INPUT_JSON",
     "SLA_REMINDER_SECONDS",
     "SLA_DEADLINE_SECONDS",
     "POLL_INTERVAL_SECONDS",
@@ -32,5 +32,5 @@
     "MAX_RESULTS",
     "DISCOVERY_THROTTLE_MS"
   ],
-  "syncedAt": "2026-02-22T18:21:31.170Z"
+  "syncedAt": "2026-03-04T15:24:18.323Z"
 }
