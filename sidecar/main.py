@@ -155,3 +155,19 @@ async def route(req: schemas.RouteReq):
 @app.get("/simulate_ulb_status", response_model=schemas.StatusRes)
 async def simulate_ulb_status(ticket_id: str):
     return services.simulate_status(ticket_id)
+
+@app.post("/cluster", response_model=schemas.ClusterRes)
+async def cluster(req: schemas.ClusterReq):
+    try:
+        return services.cluster_mepp(req.mepp)
+    except Exception as e:
+        logger.error(f"/cluster error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/pack", response_model=schemas.PackRes)
+async def pack(req: schemas.PackReq):
+    try:
+        return services.build_pack(req)
+    except Exception as e:
+        logger.error(f"/pack error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

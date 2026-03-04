@@ -2,11 +2,49 @@ import math
 import datetime
 import os
 import collections
+import sqlite3
+import json
+import hashlib
+import time
 from typing import Dict, List, Optional, Tuple, Any, Set
 
-from .schemas import MEPP, DedupeRes, ScoreRes, RouteRes, StatusRes
+from .schemas import MEPP, DedupeRes, ScoreRes, RouteRes, StatusRes, ClusterRes, PackRes, PackReq
 
 # --- Globals / Config ---
+CLUSTER_DB = os.environ.get("CLUSTER_DB", "cluster.db")
+CLUSTER_JACCARD_MIN = float(os.environ.get("CLUSTER_JACCARD_MIN", "0.45"))
+PACK_DIR = os.environ.get("PACK_DIR", "./packs")
+PACK_MAX_EVIDENCE = int(os.environ.get("PACK_MAX_EVIDENCE", "5"))
+
+def init_db():
+    conn = sqlite3.connect(CLUSTER_DB)
+    c = conn.cursor()
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS clusters (
+            cluster_id TEXT PRIMARY KEY,
+            ward TEXT,
+            geocell TEXT,
+            centroid TEXT,
+            members INT,
+            created_at TEXT,
+            updated_at TEXT
+        )
+    ''')
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS cluster_members (
+            cluster_id TEXT,
+            case_id TEXT,
+            summary TEXT,
+            lat REAL,
+            lon REAL,
+            ts TEXT
+        )
+    ''')
+    conn.commit()
+    conn.close()
+
+init_db()
+
 CANONICAL_INCIDENTS = [
     {
         "id": "INC-001",
@@ -241,4 +279,164 @@ def simulate_status(ticket_id: str) -> StatusRes:
         ticket_id=ticket_id,
         status=entry["status"],
         updated_at=entry["updated_at"].isoformat().replace("+00:00", "Z")
+    )
+
+def get_geocell(lat: Any, lon: Any) -> str:
+    if lat is None or lon is None:
+        return "nogeo"
+    try:
+        lat_f = float(lat)
+        lon_f = float(lon)
+        return f"{math.floor(lat_f * 3000)}:{math.floor(lon_f * 3000)}"
+    except (ValueError, TypeError):
+        return "nogeo"
+
+def tokenize_summary(text: str) -> Set[str]:
+    if not text:
+        return set()
+    return set(w for w in text.lower().split() if len(w) > 2)
+
+def cluster_mepp(mepp: MEPP) -> ClusterRes:
+    lat = mepp.location.get("lat")
+    lon = mepp.location.get("lon")
+    ward = str(mepp.location.get("ward", ""))
+    
+    geocell = get_geocell(lat, lon)
+    summary = str(mepp.issue.get("summary", ""))
+    tokens = tokenize_summary(summary)
+    
+    conn = sqlite3.connect(CLUSTER_DB, timeout=10.0)
+    c = conn.cursor()
+    
+    c.execute('SELECT cluster_id, centroid, members FROM clusters WHERE ward = ? OR geocell = ?', (ward, geocell))
+    rows = c.fetchall()
+    
+    best_sim = 0.0
+    best_cluster_id = None
+    best_centroid = set()
+    best_members = 0
+    
+    for row_cid, row_centroid_str, row_members in rows:
+        row_centroid = set(json.loads(row_centroid_str))
+        sim = jaccard_similarity(tokens, row_centroid)
+        if sim > best_sim:
+            best_sim = sim
+            best_cluster_id = row_cid
+            best_centroid = row_centroid
+            best_members = row_members
+            
+    is_new = False
+    now_str = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    
+    if best_sim >= CLUSTER_JACCARD_MIN and best_cluster_id:
+        cluster_id = best_cluster_id
+        new_centroid = best_centroid.union(tokens)
+        new_members = best_members + 1
+        
+        # Retry logic for concurrency
+        for _ in range(3):
+            try:
+                c.execute('UPDATE clusters SET centroid = ?, members = ?, updated_at = ? WHERE cluster_id = ?', 
+                          (json.dumps(list(new_centroid)), new_members, now_str, cluster_id))
+                break
+            except sqlite3.OperationalError:
+                time.sleep(0.1)
+    else:
+        is_new = True
+        cluster_id = "CL-" + hashlib.sha1(os.urandom(32)).hexdigest()[:8]
+        new_members = 1
+        for _ in range(3):
+            try:
+                c.execute('INSERT INTO clusters (cluster_id, ward, geocell, centroid, members, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+                          (cluster_id, ward, geocell, json.dumps(list(tokens)), new_members, now_str, now_str))
+                break
+            except sqlite3.OperationalError:
+                time.sleep(0.1)
+        
+    for _ in range(3):
+        try:
+            c.execute('INSERT INTO cluster_members (cluster_id, case_id, summary, lat, lon, ts) VALUES (?, ?, ?, ?, ?, ?)',
+                      (cluster_id, mepp.case_id, summary, lat, lon, now_str))
+            conn.commit()
+            break
+        except sqlite3.OperationalError:
+            time.sleep(0.1)
+            
+    conn.close()
+    
+    return ClusterRes(
+        cluster_id=cluster_id,
+        is_new=is_new,
+        members=new_members,
+        geo_cell=geocell,
+        text_similarity=best_sim if not is_new else 1.0
+    )
+
+def build_pack(req: PackReq) -> PackRes:
+    from reportlab.pdfgen import canvas
+    
+    os.makedirs(PACK_DIR, exist_ok=True)
+    
+    pack_id = "PK-" + hashlib.sha1(os.urandom(32)).hexdigest()[:10]
+    now_str = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    
+    payload = {
+        "pack_id": pack_id,
+        "created_at": now_str,
+        "mepp": req.mepp.model_dump(),
+        "gating": req.gating,
+        "routing": req.routing,
+        "cluster": req.cluster.model_dump()
+    }
+    
+    json_path = os.path.join(PACK_DIR, f"{pack_id}.json")
+    json_bytes = json.dumps(payload, indent=2).encode('utf-8')
+    with open(json_path, 'wb') as f:
+        f.write(json_bytes)
+        
+    sha256_hash = hashlib.sha256(json_bytes).hexdigest()
+    
+    pdf_path = os.path.join(PACK_DIR, f"{pack_id}.pdf")
+    c = canvas.Canvas(pdf_path)
+    
+    case_id = req.mepp.case_id or req.mepp.provenance.get("raw_id", "Unknown")
+    summary = req.mepp.issue.get("summary", "")
+    category = req.mepp.issue.get("category", "")
+    dest = req.routing.get("dest", "")
+    conf = req.routing.get("confidence", 0.0)
+    status = req.gating.get("status", "")
+    f_conf = req.gating.get("final_confidence", 0.0)
+    
+    photos = req.mepp.evidence.get("photos", [])
+    if not isinstance(photos, list):
+        photos = []
+    photos = photos[:PACK_MAX_EVIDENCE]
+    
+    lines = [
+        f"Pack ID: {pack_id}",
+        f"Case ID: {case_id}",
+        f"Cluster ID: {req.cluster.cluster_id}",
+        f"Issue Summary: {summary}",
+        f"Issue Category: {category}",
+        f"Routing Dest: {dest} (Confidence: {conf})",
+        f"Gating Status: {status} (Final Conf: {f_conf})",
+        f"Evidence URLs (Top {PACK_MAX_EVIDENCE}):"
+    ]
+    lines.extend([f" - {p}" for p in photos])
+    
+    y = 800
+    for line in lines:
+        c.drawString(50, y, str(line))
+        y -= 20
+        
+    c.save()
+    
+    abs_json = os.path.abspath(json_path)
+    abs_pdf = os.path.abspath(pdf_path)
+    
+    return PackRes(
+        pack_id=pack_id,
+        json_url=f"file://{abs_json}",
+        pdf_url=f"file://{abs_pdf}",
+        sha256=f"sha256:{sha256_hash}"
     )

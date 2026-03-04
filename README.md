@@ -42,3 +42,47 @@ The sidecar now supports path normalization (e.g., `//dedupe` -> `/dedupe`) and 
     ```bash
     curl -X OPTIONS "http://localhost:8000/dedupe" -v
     ```
+
+## Environment Variables
+- `CLUSTER_DB`: Path to SQLite DB for clusters (default: `cluster.db`)
+- `CLUSTER_JACCARD_MIN`: Minimum Jaccard similarity to cluster (default: `0.45`)
+- `PACK_DIR`: Directory to store generated pack artifacts (default: `./packs`)
+- `PACK_MAX_EVIDENCE`: Maximum number of photos included in the pack PDF (default: `5`)
+
+## Smoke Tests
+
+### Test 1: /cluster creates a new cluster
+```bash
+curl -s -X POST http://localhost:8000/cluster \
+  -H "Content-Type: application/json" \
+  -d '{
+    "mepp":{
+      "version":"1.0",
+      "issue":{"summary":"Overflowing garbage near market","category":"sanitation/garbage","details":"2 days"},
+      "location":{"lat":11.109,"lon":77.341,"address_text":"Ward 14 market","ward":"14"},
+      "evidence":{"photos":["https://ex/p1.jpg","https://ex/p2.jpg"]},
+      "provenance":{"channel":"matrix","raw_id":"RAW-001"}
+    }
+  }'
+```
+
+### Test 2: /cluster called again attaches to same cluster and increments members
+(repeat the same curl and confirm `cluster_id` stable and `members` increased)
+
+### Test 3: /pack generates JSON+PDF and returns file URLs + sha256
+```bash
+curl -s -X POST http://localhost:8000/pack \
+  -H "Content-Type: application/json" \
+  -d '{
+    "mepp":{
+      "version":"1.0",
+      "issue":{"summary":"Overflowing garbage near market","category":"sanitation/garbage","details":"2 days"},
+      "location":{"lat":11.109,"lon":77.341,"address_text":"Ward 14 market","ward":"14"},
+      "evidence":{"photos":["https://ex/p1.jpg","https://ex/p2.jpg"]},
+      "provenance":{"channel":"matrix","raw_id":"RAW-001"}
+    },
+    "gating":{"status":"action","tier":3,"source_confidence":0.55,"content_confidence":1.0,"final_confidence":0.55,"missing_fields":[]},
+    "routing":{"dest":"ULB_TIRUPPUR_SANITATION","confidence":0.9,"basis":["rule: sanitation+ward14"]},
+    "cluster":{"cluster_id":"CL-REPLACE","is_new":false,"members":2,"geo_cell":"33333:22222","text_similarity":0.62}
+  }'
+```

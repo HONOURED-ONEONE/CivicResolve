@@ -48,3 +48,25 @@ class StatusRes(BaseModel):
     ticket_id: str
     status: str
     updated_at: str
+
+class ClusterReq(BaseModel):
+    mepp: MEPP
+
+class ClusterRes(BaseModel):
+    cluster_id: str
+    is_new: bool
+    members: int
+    geo_cell: Optional[str] = None
+    text_similarity: float
+
+class PackReq(BaseModel):
+    mepp: MEPP
+    gating: Dict
+    routing: Dict
+    cluster: ClusterRes
+
+class PackRes(BaseModel):
+    pack_id: str
+    json_url: str
+    pdf_url: str
+    sha256: str
