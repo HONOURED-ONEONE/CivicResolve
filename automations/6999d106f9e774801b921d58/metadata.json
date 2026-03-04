@@ -1,16 +1,16 @@
 {
   "automationId": "6999d106f9e774801b921d58",
   "automationName": "Unnamed Automation",
-  "version": "v10",
+  "version": "v11",
   "mode": "multi-file",
   "dependencies": [
     {
-      "id": "1772638042498_24",
+      "id": "1772638311821_24",
       "name": "axios",
       "version": "latest"
     },
     {
-      "id": "1772638042498_25",
+      "id": "1772638311821_25",
       "name": "uuid",
       "version": "latest"
     }
@@ -31,14 +31,14 @@
     "KEYWORDS",
     "MAX_RESULTS",
     "DISCOVERY_THROTTLE_MS",
+    "TIER_CONF_JSON",
     "THRESHOLD_ACTION",
     "THRESHOLD_DRAFT",
-    "TIER_CONF_JSON",
+    "REMINDER_SECONDS",
+    "DEADLINE_SECONDS",
     "CONNECTOR_SWACHHATA_ENABLED",
     "CONNECTOR_CPGRAMS_ENABLED",
-    "CONNECTOR_TNCM_ENABLED",
-    "REMINDER_SECONDS",
-    "DEADLINE_SECONDS"
+    "CONNECTOR_TNCM_ENABLED"
   ],
-  "syncedAt": "2026-03-04T15:32:30.494Z"
+  "syncedAt": "2026-03-04T15:35:18.035Z"
 }
