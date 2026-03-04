@@ -49,6 +49,32 @@ function safeParse(json, fallback) {
     process.exit(0)
   }
 
+  // --- Urgent Signal Alert (fire-and-forget to NOTIFY_WEBHOOK) ---
+  const urgentTerms = (process.env.URGENT_TERMS || "flood,sewage overflow").split(",").map(s => s.trim().toLowerCase())
+  const thisCat = ((signal.issue && signal.issue.category) || "").toLowerCase()
+  if (urgentTerms.includes(thisCat)) {
+    // Compose alert content: prefer pack if already present, else signal summary
+    let packLink = signal.pack && signal.pack.pdf_url ? signal.pack.pdf_url : null
+    let summary = signal.issue.summary || ""
+    let alertText = packLink ? `URGENT ALERT: [${thisCat}] - ${summary} | Pack: ${packLink}` : `URGENT ALERT: [${thisCat}] - ${summary}`
+    const alertPayload = {
+      type: "URGENT_ALERT",
+      category: thisCat,
+      summary: alertText,
+      pack: packLink || null,
+      signal_summary: summary,
+      ts: nowIso()
+    }
+    ;(async () => {
+      try {
+        await axios.post(process.env.NOTIFY_WEBHOOK, alertPayload)
+        console.log(`[ALERT] Urgent category '${thisCat}' alert posted to NOTIFY_WEBHOOK`, alertPayload)
+      } catch (e) {
+        console.log(`[ALERT][WARN] Failed to POST urgent alert to NOTIFY_WEBHOOK`, e && e.message)
+      }
+    })()
+  }
+
   // Prepare contract context
   const ctx = { signal, gating: {}, mepp: {}, cluster: {}, routing: {}, pack: {}, ticket_id: "", idemKey: "" }
   ctx.idemKey = `${signal.source.raw_id || ""}:${signal.source.channel || ""}`
