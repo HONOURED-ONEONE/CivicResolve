@@ -1,16 +1,16 @@
 {
   "automationId": "6999d106f9e774801b921d58",
   "automationName": "Unnamed Automation",
-  "version": "v8",
+  "version": "v9",
   "mode": "multi-file",
   "dependencies": [
     {
-      "id": "1771783782440_16",
+      "id": "1772637811157_24",
       "name": "axios",
       "version": "latest"
     },
     {
-      "id": "1771783782440_17",
+      "id": "1772637811157_25",
       "name": "uuid",
       "version": "latest"
     }
@@ -30,7 +30,15 @@
     "GEO_TERMS",
     "KEYWORDS",
     "MAX_RESULTS",
-    "DISCOVERY_THROTTLE_MS"
+    "DISCOVERY_THROTTLE_MS",
+    "THRESHOLD_ACTION",
+    "THRESHOLD_DRAFT",
+    "TIER_CONF_JSON",
+    "CONNECTOR_SWACHHATA_ENABLED",
+    "CONNECTOR_CPGRAMS_ENABLED",
+    "CONNECTOR_TNCM_ENABLED",
+    "REMINDER_SECONDS",
+    "DEADLINE_SECONDS"
   ],
-  "syncedAt": "2026-03-04T15:24:18.323Z"
+  "syncedAt": "2026-03-04T15:27:41.992Z"
 }
