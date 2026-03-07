@@ -1,14 +1,11 @@
-# Base image
 FROM python:3.11-slim
 
 WORKDIR /app
-# Copy your sidecar code & requirements
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-# Run Uvicorn without .venv path
 ENV PORT=8000
+# ✅ No 'web:' prefix here:
 CMD ["python", "-m", "uvicorn", "sidecar.main:app", "--host", "0.0.0.0", "--port", "8000"]
-# (Alternatively) CMD ["uvicorn", "sidecar.main:app", "--host", "0.0.0.0", "--port", "8000"]
