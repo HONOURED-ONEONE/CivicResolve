@@ -1,0 +1,583 @@
+{
+  "name": "CivicResolve",
+  "metadata": {
+    "description": "CivicResolve single-scenario state machine (INGEST + SLA) with Sidecar and Upstash Redis",
+    "version": "1.0"
+  },
+  "flow": [
+    {
+      "id": 1,
+      "module": "webhooks",
+      "name": "WH Orchestrate",
+      "type": "customWebhook",
+      "parameters": {
+        "hookName": "wh_orchestrate",
+        "dataStructure": {
+          "phase": "INGEST",
+          "source": {
+            "channel": "matrix",
+            "raw_id": "RAW-001",
+            "url": ""
+          },
+          "issue": {
+            "summary": "Overflowing garbage near Gandhi statue",
+            "category": "sanitation/garbage",
+            "details": "2 days"
+          },
+          "location": {
+            "lat": 11.109,
+            "lon": 77.3415,
+            "address": "Ward 14, Gandhi Statue",
+            "ward": "14"
+          },
+          "evidence": {
+            "photos": [
+              "https://example.com/p1.jpg",
+              "https://example.com/p2.jpg"
+            ],
+            "links": []
+          }
+        }
+      },
+      "success": [2]
+    },
+
+    {
+      "id": 2,
+      "module": "router",
+      "name": "Router: phase",
+      "filters": [
+        {
+          "name": "phase == SLA",
+          "condition": {
+            "type": "equal",
+            "leftValue": "{{1.phase}}",
+            "rightValue": "SLA"
+          },
+          "to": 30
+        }
+      ],
+      "fallback": 3
+    },
+
+    {
+      "id": 3,
+      "module": "http",
+      "name": "Upstash GET event:<eventKey>",
+      "parameters": {
+        "method": "GET",
+        "url": "{{env.UPSTASH_REST_URL}}/get/event:{{coalesce(1.source.raw_id; 1.source.url; formatDate(now; \"x\"))}}:{{lower(1.source.channel)}}",
+        "headers": [
+          { "name": "Authorization", "value": "Bearer {{env.UPSTASH_REST_TOKEN}}" }
+        ]
+      },
+      "success": [4]
+    },
+
+    {
+      "id": 4,
+      "module": "router",
+      "name": "Router: duplicate?",
+      "filters": [
+        {
+          "name": "already seen",
+          "condition": {
+            "type": "notEmpty",
+            "value": "{{3.body}}"
+          },
+          "to": 5
+        }
+      ],
+      "fallback": 6
+    },
+
+    {
+      "id": 5,
+      "module": "webhookResponse",
+      "name": "Respond duplicate",
+      "parameters": {
+        "status": 200,
+        "body": "{\"status\":\"duplicate_event_ignored\",\"idemKey\":\"{{coalesce(1.source.raw_id; 1.source.url; formatDate(now; \"x\"))}}:{{lower(1.source.channel)}}\"}"
+      }
+    },
+
+    {
+      "id": 6,
+      "module": "http",
+      "name": "Upstash SET event:<eventKey>",
+      "parameters": {
+        "method": "GET",
+        "url": "{{env.UPSTASH_REST_URL}}/set/event:{{coalesce(1.source.raw_id; 1.source.url; formatDate(now; \"x\"))}}:{{lower(1.source.channel)}}/{{formatDate(now; \"YYYY-MM-DDTHH:mm:ss[Z]\")}}?EX=86400",
+        "headers": [
+          { "name": "Authorization", "value": "Bearer {{env.UPSTASH_REST_TOKEN}}" }
+        ]
+      },
+      "success": [7]
+    },
+
+    {
+      "id": 7,
+      "module": "tools.setVariable",
+      "name": "Compute Gate Scores",
+      "parameters": {
+        "variables": [
+          { "name": "photos", "value": "{{length(1.evidence.photos[])}}"},
+          { "name": "links",  "value": "{{length(1.evidence.links[])}}"},
+          { "name": "E", "value": "{{if( photos >= 2 ; 1 ; if( photos = 1 ; 0.7 ; if( links > 0 ; 0.4 ; 0 )))}}"},
+          { "name": "L", "value": "{{if( and( not(empty(1.location.lat)) ; not(empty(1.location.lon)) ; not(empty(1.location.address)) ) ; 1 ; if( and( not(empty(1.location.address)) ; not(empty(1.location.ward)) ) ; 0.7 ; if( not(empty(1.location.ward)) ; 0.4 ; 0 )))}}"},
+          { "name": "C", "value": "{{if( and( not(empty(1.issue.summary)) ; not(empty(1.issue.category)) ; not(empty(1.issue.details)) ) ; 1 ; if( and( not(empty(1.issue.summary)) ; not(empty(1.issue.category)) ) ; 0.7 ; if( not(empty(1.issue.summary)) ; 0.4 ; 0 )))}}"},
+          { "name": "content_confidence", "value": "{{round( 0.40*E + 0.35*L + 0.25*C ; 2 )}}"},
+          { "name": "source_confidence",  "value": "{{coalesce( {{http.getTier.body}} ; 0.55 )}}"},
+          { "name": "final_confidence",   "value": "{{round( source_confidence * content_confidence ; 2 )}}"},
+          { "name": "idemKey", "value": "{{coalesce(1.source.raw_id; 1.source.url; formatDate(now; \"x\"))}}:{{lower(1.source.channel)}}"}
+        ]
+      },
+      "success": [8]
+    },
+
+    {
+      "id": 8,
+      "module": "http",
+      "name": "Upstash GET tier:<channel>",
+      "alias": "http.getTier",
+      "parameters": {
+        "method": "GET",
+        "url": "{{env.UPSTASH_REST_URL}}/get/tier:{{lower(1.source.channel)}}",
+        "headers": [
+          { "name": "Authorization", "value": "Bearer {{env.UPSTASH_REST_TOKEN}}" }
+        ]
+      },
+      "success": [9]
+    },
+
+    {
+      "id": 9,
+      "module": "router",
+      "name": "Router: Gate Outcome",
+      "filters": [
+        {
+          "name": "reject_low_signal",
+          "condition": { "type": "lessThan", "leftValue": "{{7.final_confidence}}", "rightValue": "{{env.THRESHOLD_DRAFT}}" },
+          "to": 10
+        },
+        {
+          "name": "needs_info",
+          "condition": {
+            "type": "all",
+            "conditions": [
+              { "type": "greaterThanOrEqual", "leftValue": "{{7.final_confidence}}", "rightValue": "{{env.THRESHOLD_DRAFT}}" },
+              { "type": "lessThan", "leftValue": "{{7.final_confidence}}", "rightValue": "{{env.THRESHOLD_ACTION}}" }
+            ]
+          },
+          "to": 11
+        }
+      ],
+      "fallback": 12
+    },
+
+    {
+      "id": 10,
+      "module": "webhookResponse",
+      "name": "Respond REJECT",
+      "parameters": {
+        "status": 200,
+        "body": "{\"status\":\"reject_low_signal\",\"final\":{{7.final_confidence}}}"
+      }
+    },
+
+    {
+      "id": 11,
+      "module": "webhookResponse",
+      "name": "Respond DRAFT",
+      "parameters": {
+        "status": 200,
+        "body": "{\"status\":\"needs_info\",\"final\":{{7.final_confidence}},\"missing_fields\":[\"evidence.photos>=2\",\"location.lat/lon/address\",\"issue.details (preferred)\"]}"
+      }
+    },
+
+    {
+      "id": 12,
+      "module": "tools.setVariable",
+      "name": "Build MEPP & Gating",
+      "parameters": {
+        "variables": [
+          { "name": "mepp.issue.summary",  "value": "{{1.issue.summary}}"},
+          { "name": "mepp.issue.category", "value": "{{1.issue.category}}"},
+          { "name": "mepp.issue.details",  "value": "{{1.issue.details}}"},
+          { "name": "mepp.location.lat",   "value": "{{1.location.lat}}"},
+          { "name": "mepp.location.lon",   "value": "{{1.location.lon}}"},
+          { "name": "mepp.location.address_text", "value": "{{1.location.address}}"},
+          { "name": "mepp.location.ward",  "value": "{{1.location.ward}}"},
+          { "name": "mepp.evidence.photos[]", "value": "{{1.evidence.photos[]}}"},
+          { "name": "mepp.evidence.links[]",  "value": "{{1.evidence.links[]}}"},
+          { "name": "mepp.provenance.channel", "value": "{{1.source.channel}}"},
+          { "name": "mepp.provenance.raw_id",  "value": "{{coalesce(1.source.raw_id; 1.source.url; 7.idemKey)}}"},
+          { "name": "gating.status", "value": "action"},
+          { "name": "gating.source_confidence", "value": "{{7.source_confidence}}"},
+          { "name": "gating.content_confidence","value": "{{7.content_confidence}}"},
+          { "name": "gating.final_confidence",  "value": "{{7.final_confidence}}"}
+        ]
+      },
+      "success": [13]
+    },
+
+    {
+      "id": 13,
+      "module": "http",
+      "name": "Sidecar /dedupe",
+      "parameters": {
+        "method": "POST",
+        "url": "{{env.SIDECAR_BASE_URL}}/dedupe",
+        "headers": [{ "name": "Content-Type", "value": "application/json" }],
+        "body": "{\"mepp\":{{12.mepp}}}",
+        "retry": { "count": 3, "type": "exponential" }
+      },
+      "success": [14]
+    },
+
+    {
+      "id": 14,
+      "module": "router",
+      "name": "Router: Duplicate?",
+      "filters": [
+        {
+          "name": "is duplicate",
+          "condition": { "type": "notEmpty", "value": "{{13.body.duplicate_of}}" },
+          "to": 15
+        }
+      ],
+      "fallback": 16
+    },
+
+    {
+      "id": 15,
+      "module": "webhookResponse",
+      "name": "Respond DUPLICATE",
+      "parameters": {
+        "status": 200,
+        "body": "{\"status\":\"duplicate_detected\",\"of\":\"{{13.body.duplicate_of}}\"}"
+      }
+    },
+
+    {
+      "id": 16,
+      "module": "http",
+      "name": "Sidecar /cluster",
+      "parameters": {
+        "method": "POST",
+        "url": "{{env.SIDECAR_BASE_URL}}/cluster",
+        "headers": [{ "name": "Content-Type", "value": "application/json" }],
+        "body": "{\"mepp\":{{12.mepp}}}",
+        "retry": { "count": 3, "type": "exponential" }
+      },
+      "success": [17]
+    },
+
+    {
+      "id": 17,
+      "module": "http",
+      "name": "Sidecar /score",
+      "parameters": {
+        "method": "POST",
+        "url": "{{env.SIDECAR_BASE_URL}}/score",
+        "headers": [{ "name": "Content-Type", "value": "application/json" }],
+        "body": "{\"mepp\":{{12.mepp}}}",
+        "retry": { "count": 3, "type": "exponential" }
+      },
+      "success": [18]
+    },
+
+    {
+      "id": 18,
+      "module": "http",
+      "name": "Sidecar /route",
+      "parameters": {
+        "method": "POST",
+        "url": "{{env.SIDECAR_BASE_URL}}/route",
+        "headers": [{ "name": "Content-Type", "value": "application/json" }],
+        "body": "{\"mepp\":{{12.mepp}}}",
+        "retry": { "count": 3, "type": "exponential" }
+      },
+      "success": [19]
+    },
+
+    {
+      "id": 19,
+      "module": "http",
+      "name": "Sidecar /pack",
+      "parameters": {
+        "method": "POST",
+        "url": "{{env.SIDECAR_BASE_URL}}/pack",
+        "headers": [{ "name": "Content-Type", "value": "application/json" }],
+        "body": "{\"mepp\":{{12.mepp}},\"gating\":{{12.gating}},\"routing\":{{18.body}},\"cluster\":{{16.body}}}",
+        "retry": { "count": 3, "type": "exponential" }
+      },
+      "success": [20]
+    },
+
+    {
+      "id": 20,
+      "module": "http",
+      "name": "Upstash GET routing:<dest>",
+      "parameters": {
+        "method": "GET",
+        "url": "{{env.UPSTASH_REST_URL}}/get/routing:{{18.body.dest}}",
+        "headers": [{ "name": "Authorization", "value": "Bearer {{env.UPSTASH_REST_TOKEN}}" }]
+      },
+      "success": [21]
+    },
+
+    {
+      "id": 21,
+      "module": "router",
+      "name": "Router: connector",
+      "filters": [
+        {
+          "name": "swachhata",
+          "condition": { "type": "equal", "leftValue": "{{20.body}}", "rightValue": "connector_swachhata" },
+          "to": 22
+        },
+        {
+          "name": "cpgrams",
+          "condition": { "type": "equal", "leftValue": "{{20.body}}", "rightValue": "connector_cpgrams" },
+          "to": 24
+        },
+        {
+          "name": "tncm",
+          "condition": { "type": "equal", "leftValue": "{{20.body}}", "rightValue": "connector_tncm" },
+          "to": 26
+        }
+      ],
+      "fallback": 28
+    },
+
+    {
+      "id": 22,
+      "module": "tools.setVariable",
+      "name": "Ticket (shadow) SW",
+      "parameters": {
+        "variables": [
+          { "name": "ticket_id", "value": "{{concat(\"SW-\", formatDate(now; \"x\"))}}"},
+          { "name": "connector", "value": "swachhata"},
+          { "name": "mode", "value": "shadow"}
+        ]
+      },
+      "success": [23]
+    },
+
+    {
+      "id": 23,
+      "module": "http",
+      "name": "Upstash SET filed:<idemKey>",
+      "parameters": {
+        "method": "GET",
+        "url": "{{env.UPSTASH_REST_URL}}/set/filed:{{7.idemKey}}/%7B%22ticket_id%22%3A%22{{22.ticket_id}}%22%2C%22connector%22%3A%22{{22.connector}}%22%2C%22mode%22%3A%22{{22.mode}}%22%7D",
+        "headers": [{ "name": "Authorization", "value": "Bearer {{env.UPSTASH_REST_TOKEN}}" }]
+      },
+      "success": [29]
+    },
+
+    {
+      "id": 24,
+      "module": "tools.setVariable",
+      "name": "Ticket (shadow) CP",
+      "parameters": {
+        "variables": [
+          { "name": "ticket_id", "value": "{{concat(\"CP-\", formatDate(now; \"x\"))}}"},
+          { "name": "connector", "value": "cpgrams"},
+          { "name": "mode", "value": "shadow"}
+        ]
+      },
+      "success": [25]
+    },
+
+    {
+      "id": 25,
+      "module": "http",
+      "name": "Upstash SET filed:<idemKey> (CP)",
+      "parameters": {
+        "method": "GET",
+        "url": "{{env.UPSTASH_REST_URL}}/set/filed:{{7.idemKey}}/%7B%22ticket_id%22%3A%22{{24.ticket_id}}%22%2C%22connector%22%3A%22{{24.connector}}%22%2C%22mode%22%3A%22{{24.mode}}%22%7D",
+        "headers": [{ "name": "Authorization", "value": "Bearer {{env.UPSTASH_REST_TOKEN}}" }]
+      },
+      "success": [29]
+    },
+
+    {
+      "id": 26,
+      "module": "tools.setVariable",
+      "name": "Ticket (shadow) TN",
+      "parameters": {
+        "variables": [
+          { "name": "ticket_id", "value": "{{concat(\"TN-\", formatDate(now; \"x\"))}}"},
+          { "name": "connector", "value": "tncm"},
+          { "name": "mode", "value": "shadow"}
+        ]
+      },
+      "success": [27]
+    },
+
+    {
+      "id": 27,
+      "module": "http",
+      "name": "Upstash SET filed:<idemKey> (TN)",
+      "parameters": {
+        "method": "GET",
+        "url": "{{env.UPSTASH_REST_URL}}/set/filed:{{7.idemKey}}/%7B%22ticket_id%22%3A%22{{26.ticket_id}}%22%2C%22connector%22%3A%22{{26.connector}}%22%2C%22mode%22%3A%22{{26.mode}}%22%7D",
+        "headers": [{ "name": "Authorization", "value": "Bearer {{env.UPSTASH_REST_TOKEN}}" }]
+      },
+      "success": [29]
+    },
+
+    {
+      "id": 28,
+      "module": "webhookResponse",
+      "name": "Respond no connector",
+      "parameters": {
+        "status": 200,
+        "body": "{\"status\":\"no_connector_enabled\",\"pack_pdf\":\"{{19.body.pdf_url}}\",\"pack_json\":\"{{19.body.json_url}}\",\"dest\":\"{{18.body.dest}}\"}"
+      }
+    },
+
+    {
+      "id": 29,
+      "module": "http",
+      "name": "Upstash SET SLA (multi-keys)",
+      "parameters": {
+        "method": "GET",
+        "url": "{{env.UPSTASH_REST_URL}}/set/sla:{{22.ticket_id}}{{24.ticket_id}}{{26.ticket_id}}/seed",
+        "headers": [{ "name": "Authorization", "value": "Bearer {{env.UPSTASH_REST_TOKEN}}" }]
+      },
+      "success": [31]
+    },
+
+    {
+      "id": 31,
+      "module": "webhookResponse",
+      "name": "Respond FILED",
+      "parameters": {
+        "status": 200,
+        "body": "{\"status\":\"filed\",\"ticket_id\":\"{{coalesce(22.ticket_id;24.ticket_id;26.ticket_id)}}\",\"connector\":\"{{coalesce(22.connector;24.connector;26.connector)}}\",\"pack_pdf\":\"{{19.body.pdf_url}}\",\"pack_json\":\"{{19.body.json_url}}\"}"
+      },
+      "success": [32]
+    },
+
+    {
+      "id": 32,
+      "module": "sleep",
+      "name": "Sleep (first hop)",
+      "parameters": { "seconds": "{{min(env.MAX_SLEEP_CHUNK_S; env.REMINDER_SECONDS)}}" },
+      "success": [33]
+    },
+
+    {
+      "id": 33,
+      "module": "http",
+      "name": "Self invoke SLA",
+      "parameters": {
+        "method": "POST",
+        "url": "__SELF_WEBHOOK_URL__",
+        "headers": [{ "name": "Content-Type", "value": "application/json" }],
+        "body": "{\"phase\":\"SLA\",\"ticket_id\":\"{{coalesce(22.ticket_id;24.ticket_id;26.ticket_id)}}\"}"
+      }
+    },
+
+    {
+      "id": 30,
+      "module": "http",
+      "name": "Upstash GET SLA packed JSON (ticket_id)",
+      "parameters": {
+        "method": "GET",
+        "url": "{{env.UPSTASH_REST_URL}}/get/sla:{{1.ticket_id}}",
+        "headers": [{ "name": "Authorization", "value": "Bearer {{env.UPSTASH_REST_TOKEN}}" }]
+      },
+      "success": [34]
+    },
+
+    {
+      "id": 34,
+      "module": "tools.setVariable",
+      "name": "Compute elapsed & flags",
+      "parameters": {
+        "variables": [
+          { "name": "elapsed_s", "value": "{{diff( now ; {{30.body.first_seen_ts}} ; \"seconds\" )}}"},
+          { "name": "due_deadline", "value": "{{elapsed_s >= {{30.body.deadline_s}} }}"},
+          { "name": "due_reminder", "value": "{{and( not({{30.body.reminded}}) ; elapsed_s >= {{30.body.reminder_s}} )}}"}
+        ]
+      },
+      "success": [35]
+    },
+
+    {
+      "id": 35,
+      "module": "router",
+      "name": "Router: SLA decision",
+      "filters": [
+        {
+          "name": "deadline",
+          "condition": { "type": "equal", "leftValue": "{{34.due_deadline}}", "rightValue": "true" },
+          "to": 36
+        },
+        {
+          "name": "reminder",
+          "condition": { "type": "equal", "leftValue": "{{34.due_reminder}}", "rightValue": "true" },
+          "to": 37
+        }
+      ],
+      "fallback": 39
+    },
+
+    {
+      "id": 36,
+      "module": "http",
+      "name": "Notify ESCALATION",
+      "parameters": {
+        "method": "POST",
+        "url": "{{env.NOTIFY_WEBHOOK}}",
+        "headers": [{ "name": "Content-Type", "value": "application/json" }],
+        "body": "{\"type\":\"ESCALATION\",\"ticket_id\":\"{{1.ticket_id}}\",\"dest\":\"{{30.body.dest}}\",\"artifact\":\"{{30.body.pack_pdf}}\",\"elapsed_s\":{{34.elapsed_s}}}"
+      }
+    },
+
+    {
+      "id": 37,
+      "module": "http",
+      "name": "Notify REMINDER",
+      "parameters": {
+        "method": "POST",
+        "url": "{{env.NOTIFY_WEBHOOK}}",
+        "headers": [{ "name": "Content-Type", "value": "application/json" }],
+        "body": "{\"type\":\"REMINDER\",\"ticket_id\":\"{{1.ticket_id}}\",\"dest\":\"{{30.body.dest}}\",\"artifact\":\"{{30.body.pack_pdf}}\",\"elapsed_s\":{{34.elapsed_s}}}"
+      },
+      "success": [38]
+    },
+
+    {
+      "id": 38,
+      "module": "sleep",
+      "name": "Sleep hop (SLA)",
+      "parameters": { "seconds": "{{min(env.MAX_SLEEP_CHUNK_S; max(60; {{30.body.deadline_s}} - {{34.elapsed_s}}))}}" },
+      "success": [40]
+    },
+
+    {
+      "id": 39,
+      "module": "sleep",
+      "name": "Sleep until next check",
+      "parameters": { "seconds": "{{min(env.MAX_SLEEP_CHUNK_S; max(60; {{30.body.reminder_s}} - {{34.elapsed_s}}))}}" },
+      "success": [40]
+    },
+
+    {
+      "id": 40,
+      "module": "http",
+      "name": "Self invoke SLA again",
+      "parameters": {
+        "method": "POST",
+        "url": "__SELF_WEBHOOK_URL__",
+        "headers": [{ "name": "Content-Type", "value": "application/json" }],
+        "body": "{\"phase\":\"SLA\",\"ticket_id\":\"{{1.ticket_id}}\"}"
+      }
+    }
+  ]
+}
