@@ -244,42 +244,7 @@ def route_mepp(mepp: MEPP) -> RouteRes:
             
     return RouteRes(dest=dest, confidence=confidence, basis=basis)
 
-def simulate_status(ticket_id: str) -> StatusRes:
-    max_tickets = _get_env_int("MAX_TICKETS_IN_MEMORY", 500)
-    sim_minutes = _get_env_float("SIM_PROGRESS_MINUTES", 5.0)
-    
-    now = datetime.datetime.now(datetime.timezone.utc)
-    sequence = ["FILED", "IN_PROGRESS", "ACTION_TAKEN", "RESOLVED", "CLOSED"]
-    
-    if ticket_id not in TICKET_STATE:
-        if len(TICKET_STATE) >= max_tickets:
-            TICKET_STATE.popitem(last=False)
-        TICKET_STATE[ticket_id] = {
-            "status": "FILED",
-            "updated_at": now
-        }
-    
-    entry = TICKET_STATE[ticket_id]
-    current_status = entry["status"]
-    last_update = entry["updated_at"]
-    
-    diff_minutes = (now - last_update).total_seconds() / 60.0
-    
-    if diff_minutes >= sim_minutes:
-        try:
-            idx = sequence.index(current_status)
-            if idx < len(sequence) - 1:
-                entry["status"] = sequence[idx + 1]
-                entry["updated_at"] = now
-                TICKET_STATE.move_to_end(ticket_id)
-        except ValueError:
-            pass
-
-    return StatusRes(
-        ticket_id=ticket_id,
-        status=entry["status"],
-        updated_at=entry["updated_at"].isoformat().replace("+00:00", "Z")
-    )
+# simulate_status has been moved to sla-status-service.
 
 def get_geocell(lat: Any, lon: Any) -> str:
     if lat is None or lon is None:

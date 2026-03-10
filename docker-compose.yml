@@ -1,0 +1,56 @@
+version: '3.8'
+
+services:
+  case-orchestrator-service:
+    build:
+      context: ./services/case-orchestrator-service
+    ports:
+      - "3001:3001"
+    environment:
+      - PORT=3001
+      - INTELLIGENCE_SERVICE_URL=http://intelligence-service:8000
+      - AI_ADVISORY_SERVICE_URL=http://ai-advisory-service:3002
+      - CONNECTOR_SERVICE_URL=http://connector-services:3003
+      - SLA_STATUS_SERVICE_URL=http://sla-status-service:3004
+      - GOVERNANCE_PLATFORM_URL=http://governance-platform:3005
+
+  intelligence-service:
+    build:
+      context: ./services/intelligence-service
+    ports:
+      - "8000:8000"
+    environment:
+      - PORT=8000
+      - SLA_STATUS_SERVICE_URL=http://sla-status-service:3004
+
+  ai-advisory-service:
+    build:
+      context: ./services/ai-advisory-service
+    ports:
+      - "3002:3002"
+    environment:
+      - PORT=3002
+
+  connector-services:
+    build:
+      context: ./services/connector-services
+    ports:
+      - "3003:3003"
+    environment:
+      - PORT=3003
+
+  sla-status-service:
+    build:
+      context: ./services/sla-status-service
+    ports:
+      - "3004:3004"
+    environment:
+      - PORT=3004
+
+  governance-platform:
+    build:
+      context: ./services/governance-platform
+    ports:
+      - "3005:3005"
+    environment:
+      - PORT=3005

@@ -1,0 +1,28 @@
+{
+  "name": "civicresolve-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "services/case-orchestrator-service",
+    "services/connector-services",
+    "services/ai-advisory-service",
+    "services/sla-status-service",
+    "services/governance-platform"
+  ],
+  "scripts": {
+    "test": "node tests/integration/orchestrator.test.js",
+    "start:orchestrator": "npm run start --workspace=services/case-orchestrator-service",
+    "start:connectors": "npm run start --workspace=services/connector-services",
+    "start:ai": "npm run start --workspace=services/ai-advisory-service",
+    "start:sla": "npm run start --workspace=services/sla-status-service",
+    "start:governance": "npm run start --workspace=services/governance-platform",
+    "start:intelligence": "cd services/intelligence-service && uvicorn main:app --reload --port 8000"
+  },
+  "dependencies": {
+    "axios": "^1.7.0",
+    "dotenv": "^16.4.0",
+    "express": "^4.19.0",
+    "morgan": "^1.10.0"
+  }
+}

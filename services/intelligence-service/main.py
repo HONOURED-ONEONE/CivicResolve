@@ -154,7 +154,32 @@ async def route(req: schemas.RouteReq):
 
 @app.get("/simulate_ulb_status", response_model=schemas.StatusRes)
 async def simulate_ulb_status(ticket_id: str):
-    return services.simulate_status(ticket_id)
+    """
+    DEPRECATED: simulate_ulb_status has been moved to sla-status-service.
+    This endpoint remains for backward compatibility.
+    """
+    import os
+    import httpx
+    
+    sla_service_url = os.environ.get("SLA_STATUS_SERVICE_URL", "http://localhost:3004")
+    try:
+        response = httpx.get(f"{sla_service_url}/status/simulate/{ticket_id}", timeout=5.0)
+        response.raise_for_status()
+        data = response.json()
+        return schemas.StatusRes(
+            ticket_id=data["ticket_id"],
+            status=data["status"],
+            updated_at=data["updated_at"]
+        )
+    except Exception as e:
+        logger.error(f"Fallback to sla-status-service failed: {e}")
+        # Fallback to dummy data
+        from datetime import datetime, timezone
+        return schemas.StatusRes(
+            ticket_id=ticket_id,
+            status="FILED",
+            updated_at=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+        )
 
 @app.post("/cluster", response_model=schemas.ClusterRes)
 async def cluster(req: schemas.ClusterReq):

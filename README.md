@@ -1,10 +1,28 @@
 
 ## Development Workflow
+# CivicResolve
 
-We are currently working towards the MVP. Please review the following before contributing:
+CivicResolve is a decentralized, AI-assisted platform for orchestrating, analyzing, and routing civic incident reports.
+
+## Architecture
+CivicResolve has been refactored from a monolithic orchestration script and Python sidecar into a robust, decoupled microservices architecture:
+- **Case Orchestrator Service**: Node.js/Express based deterministic workflow manager.
+- **Intelligence Service**: Python/FastAPI core for deterministic deduplication, clustering, and routing.
+- **AI Advisory Service**: Provides optional, fail-open AI enrichments (vision, draft assist, search).
+- **Connector Services**: Modular adapters for downstream civic platforms (CPGRAMS, Swachhata, etc).
+- **SLA Status Service**: Manages ticket lifecycle and escalations.
+- **Governance Platform**: Centralized audit, metrics, and AI logging.
+
+For more details, see:
+- **[Architecture Overview](docs/architecture/overview.md)**
+- **[Service Boundaries](docs/architecture/services.md)**
+- **[Local Development](docs/operations/local-development.md)**
+- **[Configuration](docs/operations/configuration.md)**
+- **[Migration Notes](docs/migration/monolith-to-decoupled.md)**
+
+## MVP Checklist
 - **[Branching Strategy & Workflow](docs/BRANCHING.md)**: Guidelines for feature sub-branches and PR rules.
 - **[MVP Acceptance Checklist](docs/MVP_CHECKLIST.md)**: The definitive task list for MVP completion.
-
 **Quickstart (Branch Bootstrap):**
 To safely create the standard MVP development branches locally, simply run:
 ```bash
