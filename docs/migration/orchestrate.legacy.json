@@ -1,0 +1,1651 @@
+{
+  "name": "CivicResolve",
+  "flow": [
+    {
+      "id": 1,
+      "module": "gateway:CustomWebHook",
+      "version": 1,
+      "parameters": {
+        "hook": 2605622,
+        "maxResults": 1
+      },
+      "mapper": {},
+      "metadata": {
+        "designer": {
+          "x": 0,
+          "y": 450
+        },
+        "restore": {
+          "parameters": {
+            "hook": {
+              "label": "cr_input_signal",
+              "data": {
+                "editable": "true"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "hook",
+            "type": "hook:gateway-webhook",
+            "label": "Webhook",
+            "required": true
+          },
+          {
+            "name": "maxResults",
+            "type": "number",
+            "label": "Maximum number of results"
+          }
+        ],
+        "interface": [
+          {
+            "name": "phase",
+            "label": "Phase",
+            "type": "text",
+            "required": false,
+            "multiline": false
+          },
+          {
+            "name": "ticket_id",
+            "label": "Ticket ID",
+            "type": "text",
+            "required": false,
+            "multiline": false
+          },
+          {
+            "name": "source",
+            "label": "Source",
+            "type": "collection",
+            "required": false,
+            "spec": [
+              {
+                "name": "channel",
+                "label": "Channel",
+                "type": "text",
+                "required": false
+              },
+              {
+                "name": "raw_id",
+                "label": "Raw ID",
+                "type": "text",
+                "required": false
+              },
+              {
+                "name": "url",
+                "label": "URL",
+                "type": "text",
+                "required": false
+              }
+            ]
+          },
+          {
+            "name": "issue",
+            "label": "Issue",
+            "type": "collection",
+            "required": false,
+            "spec": [
+              {
+                "name": "summary",
+                "label": "Summary",
+                "type": "text",
+                "required": false
+              },
+              {
+                "name": "category",
+                "label": "Category",
+                "type": "text",
+                "required": false
+              },
+              {
+                "name": "details",
+                "label": "Details",
+                "type": "text",
+                "required": false
+              }
+            ]
+          },
+          {
+            "name": "location",
+            "label": "Location",
+            "type": "collection",
+            "required": false,
+            "spec": [
+              {
+                "name": "lat",
+                "label": "Lat",
+                "type": "number",
+                "required": false
+              },
+              {
+                "name": "lon",
+                "label": "Lon",
+                "type": "number",
+                "required": false
+              },
+              {
+                "name": "address",
+                "label": "Address",
+                "type": "text",
+                "required": false
+              },
+              {
+                "name": "ward",
+                "label": "Ward",
+                "type": "text",
+                "required": false
+              }
+            ]
+          },
+          {
+            "name": "evidence",
+            "label": "Evidence",
+            "type": "collection",
+            "required": false,
+            "spec": [
+              {
+                "name": "photos",
+                "label": "Photos",
+                "type": "array",
+                "required": false,
+                "spec": {
+                  "type": "text",
+                  "required": false
+                }
+              },
+              {
+                "name": "links",
+                "label": "Links",
+                "type": "array",
+                "required": false,
+                "spec": {
+                  "type": "text",
+                  "required": false
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 2,
+      "module": "builtin:BasicRouter",
+      "version": 1,
+      "parameters": {
+        "else": 1
+      },
+      "mapper": null,
+      "metadata": {
+        "designer": {
+          "x": 300,
+          "y": 450
+        }
+      },
+      "routes": [
+        {
+          "flow": [
+            {
+              "id": 3,
+              "module": "util:SetVariables",
+              "version": 1,
+              "parameters": {},
+              "filter": {
+                "name": "phase == SLA",
+                "conditions": [
+                  [
+                    {
+                      "a": "{{1.phase}}",
+                      "o": "text:equal",
+                      "b": "SLA"
+                    }
+                  ]
+                ]
+              },
+              "mapper": {
+                "scope": "roundtrip",
+                "variables": [
+                  {
+                    "name": "phase",
+                    "value": "{{1.phase}}"
+                  },
+                  {
+                    "name": "ticket_id",
+                    "value": "{{1.ticket_id}}"
+                  }
+                ]
+              },
+              "metadata": {
+                "designer": {
+                  "x": 600,
+                  "y": 0
+                }
+              }
+            },
+            {
+              "id": 4,
+              "module": "http:MakeRequest",
+              "version": 4,
+              "parameters": {
+                "handleErrors": false
+              },
+              "mapper": {
+                "ca": "",
+                "qs": [],
+                "url": "__UPSTASH_REST_URL__/get/sla:{{3.ticket_id}}",
+                "data": "",
+                "gzip": true,
+                "method": "get",
+                "headers": [
+                  {
+                    "name": "Authorization",
+                    "value": "Bearer __UPSTASH_REST_TOKEN__"
+                  }
+                ],
+                "timeout": "",
+                "useMtls": false,
+                "bodyType": "raw",
+                "contentType": "application/json",
+                "serializeUrl": false,
+                "shareCookies": false,
+                "parseResponse": false,
+                "followRedirect": true,
+                "useQuerystring": false,
+                "followAllRedirects": false,
+                "rejectUnauthorized": true
+              },
+              "metadata": {
+                "designer": {
+                  "x": 900,
+                  "y": 0
+                }
+              }
+            },
+            {
+              "id": 5,
+              "module": "http:MakeRequest",
+              "version": 4,
+              "parameters": {
+                "handleErrors": false
+              },
+              "mapper": {
+                "ca": "",
+                "qs": [],
+                "url": "__SIDECAR_BASE_URL__/simulate_ulb_status?ticket_id={{3.ticket_id}}",
+                "data": "",
+                "gzip": true,
+                "method": "get",
+                "headers": [
+                  {
+                    "name": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "timeout": "",
+                "useMtls": false,
+                "bodyType": "raw",
+                "contentType": "application/json",
+                "serializeUrl": false,
+                "shareCookies": false,
+                "parseResponse": false,
+                "followRedirect": true,
+                "useQuerystring": false,
+                "followAllRedirects": false,
+                "rejectUnauthorized": true
+              },
+              "metadata": {
+                "designer": {
+                  "x": 1200,
+                  "y": 0
+                }
+              }
+            },
+            {
+              "id": 6,
+              "module": "util:SetVariables",
+              "version": 1,
+              "parameters": {},
+              "mapper": {
+                "scope": "roundtrip",
+                "variables": [
+                  {
+                    "name": "sla_first_seen_ts",
+                    "value": "{{4.body.first_seen_ts}}"
+                  },
+                  {
+                    "name": "sla_reminder_s",
+                    "value": "{{if(empty(4.body.reminder_s); 3600; 4.body.reminder_s)}}"
+                  },
+                  {
+                    "name": "sla_deadline_s",
+                    "value": "{{if(empty(4.body.deadline_s); 86400; 4.body.deadline_s)}}"
+                  },
+                  {
+                    "name": "sla_reminded",
+                    "value": "{{if(empty(4.body.reminded); false; 4.body.reminded)}}"
+                  },
+                  {
+                    "name": "sla_escalated",
+                    "value": "{{if(empty(4.body.escalated); false; 4.body.escalated)}}"
+                  },
+                  {
+                    "name": "elapsed_s",
+                    "value": "{{diff(now; parseDate(sla_first_seen_ts; \"YYYY-MM-DDTHH:mm:ss[Z]\"); \"seconds\")}}"
+                  },
+                  {
+                    "name": "due_deadline",
+                    "value": "{{if(elapsed_s >= sla_deadline_s; true; false)}}"
+                  },
+                  {
+                    "name": "due_reminder",
+                    "value": "{{if(and(not(sla_reminded); elapsed_s >= sla_reminder_s); true; false)}}"
+                  }
+                ]
+              },
+              "metadata": {
+                "designer": {
+                  "x": 1500,
+                  "y": 0
+                }
+              }
+            },
+            {
+              "id": 7,
+              "module": "builtin:BasicRouter",
+              "version": 1,
+              "parameters": {
+                "else": 1
+              },
+              "mapper": null,
+              "metadata": {
+                "designer": {
+                  "x": 1800,
+                  "y": 0
+                }
+              },
+              "routes": [
+                {
+                  "flow": [
+                    {
+                      "id": 8,
+                      "module": "http:MakeRequest",
+                      "version": 4,
+                      "parameters": {
+                        "handleErrors": false
+                      },
+                      "filter": {
+                        "name": "ESCALATION",
+                        "conditions": [
+                          [
+                            {
+                              "a": "{{6.due_deadline}}",
+                              "o": "boolean:istrue"
+                            },
+                            {
+                              "a": "{{6.sla_escalated}}",
+                              "o": "boolean:isfalse"
+                            }
+                          ]
+                        ]
+                      },
+                      "mapper": {
+                        "ca": "",
+                        "qs": [],
+                        "url": "__NOTIFY_WEBHOOK__",
+                        "data": "{\n  \"type\":\"ESCALATION\",\n  \"ticket_id\":\"{{3.ticket_id}}\",\n  \"sla\":\"{{4.body}}\",\n  \"status\":\"{{5.body}}\",\n  \"elapsed_s\":\"{{6.elapsed_s}}\"\n}",
+                        "gzip": true,
+                        "method": "post",
+                        "headers": [
+                          {
+                            "name": "Content-Type",
+                            "value": "application/json"
+                          }
+                        ],
+                        "timeout": "",
+                        "useMtls": false,
+                        "bodyType": "raw",
+                        "contentType": "application/json",
+                        "serializeUrl": false,
+                        "shareCookies": false,
+                        "parseResponse": false,
+                        "followRedirect": true,
+                        "useQuerystring": false,
+                        "followAllRedirects": false,
+                        "rejectUnauthorized": true
+                      },
+                      "metadata": {
+                        "designer": {
+                          "x": 2100,
+                          "y": -150
+                        }
+                      }
+                    },
+                    {
+                      "id": 9,
+                      "module": "http:MakeRequest",
+                      "version": 4,
+                      "parameters": {
+                        "handleErrors": false
+                      },
+                      "mapper": {
+                        "ca": "",
+                        "qs": [],
+                        "url": "__UPSTASH_REST_URL__/set/sla:{{3.ticket_id}}",
+                        "data": "{\"ticket_id\":\"{{3.ticket_id}}\",\"dest\":\"{{4.body.dest}}\",\"pack_pdf\":\"{{4.body.pack_pdf}}\",\"first_seen_ts\":\"{{4.body.first_seen_ts}}\",\"reminder_s\":{{6.sla_reminder_s}},\"deadline_s\":{{6.sla_deadline_s}},\"reminded\":true,\"escalated\":true}",
+                        "gzip": true,
+                        "method": "post",
+                        "headers": [
+                          {
+                            "name": "Authorization",
+                            "value": "Bearer __UPSTASH_REST_TOKEN__"
+                          },
+                          {
+                            "name": "Content-Type",
+                            "value": "application/json"
+                          }
+                        ],
+                        "timeout": "",
+                        "useMtls": false,
+                        "bodyType": "raw",
+                        "contentType": "application/json",
+                        "serializeUrl": false,
+                        "shareCookies": false,
+                        "parseResponse": false,
+                        "followRedirect": true,
+                        "useQuerystring": false,
+                        "followAllRedirects": false,
+                        "rejectUnauthorized": true
+                      },
+                      "metadata": {
+                        "designer": {
+                          "x": 2400,
+                          "y": -150
+                        }
+                      }
+                    },
+                    {
+                      "id": 10,
+                      "module": "gateway:WebhookRespond",
+                      "version": 1,
+                      "parameters": {},
+                      "mapper": {
+                        "status": "200",
+                        "body": "{ \"status\":\"sla_escalated\", \"ticket_id\":\"{{3.ticket_id}}\" }",
+                        "headers": []
+                      },
+                      "metadata": {
+                        "designer": {
+                          "x": 2700,
+                          "y": -150
+                        }
+                      }
+                    }
+                  ]
+                },
+                {
+                  "flow": [
+                    {
+                      "id": 11,
+                      "module": "http:MakeRequest",
+                      "version": 4,
+                      "parameters": {
+                        "handleErrors": false
+                      },
+                      "filter": {
+                        "name": "REMINDER",
+                        "conditions": [
+                          [
+                            {
+                              "a": "{{6.due_reminder}}",
+                              "o": "boolean:istrue"
+                            }
+                          ]
+                        ]
+                      },
+                      "mapper": {
+                        "ca": "",
+                        "qs": [],
+                        "url": "__NOTIFY_WEBHOOK__",
+                        "data": "{\n  \"type\":\"REMINDER\",\n  \"ticket_id\":\"{{3.ticket_id}}\",\n  \"sla\":\"{{4.body}}\",\n  \"status\":\"{{5.body}}\",\n  \"elapsed_s\":\"{{6.elapsed_s}}\"\n}",
+                        "gzip": true,
+                        "method": "post",
+                        "headers": [
+                          {
+                            "name": "Content-Type",
+                            "value": "application/json"
+                          }
+                        ],
+                        "timeout": "",
+                        "useMtls": false,
+                        "bodyType": "raw",
+                        "contentType": "application/json",
+                        "serializeUrl": false,
+                        "shareCookies": false,
+                        "parseResponse": false,
+                        "followRedirect": true,
+                        "useQuerystring": false,
+                        "followAllRedirects": false,
+                        "rejectUnauthorized": true
+                      },
+                      "metadata": {
+                        "designer": {
+                          "x": 2100,
+                          "y": 0
+                        }
+                      }
+                    },
+                    {
+                      "id": 12,
+                      "module": "http:MakeRequest",
+                      "version": 4,
+                      "parameters": {
+                        "handleErrors": false
+                      },
+                      "mapper": {
+                        "ca": "",
+                        "qs": [],
+                        "url": "__UPSTASH_REST_URL__/set/sla:{{3.ticket_id}}",
+                        "data": "{\"ticket_id\":\"{{3.ticket_id}}\",\"dest\":\"{{4.body.dest}}\",\"pack_pdf\":\"{{4.body.pack_pdf}}\",\"first_seen_ts\":\"{{4.body.first_seen_ts}}\",\"reminder_s\":{{6.sla_reminder_s}},\"deadline_s\":{{6.sla_deadline_s}},\"reminded\":true,\"escalated\":false}",
+                        "gzip": true,
+                        "method": "post",
+                        "headers": [
+                          {
+                            "name": "Authorization",
+                            "value": "Bearer __UPSTASH_REST_TOKEN__"
+                          },
+                          {
+                            "name": "Content-Type",
+                            "value": "application/json"
+                          }
+                        ],
+                        "timeout": "",
+                        "useMtls": false,
+                        "bodyType": "raw",
+                        "contentType": "application/json",
+                        "serializeUrl": false,
+                        "shareCookies": false,
+                        "parseResponse": false,
+                        "followRedirect": true,
+                        "useQuerystring": false,
+                        "followAllRedirects": false,
+                        "rejectUnauthorized": true
+                      },
+                      "metadata": {
+                        "designer": {
+                          "x": 2400,
+                          "y": 0
+                        }
+                      }
+                    },
+                    {
+                      "id": 13,
+                      "module": "http:MakeRequest",
+                      "version": 4,
+                      "parameters": {
+                        "handleErrors": false
+                      },
+                      "mapper": {
+                        "ca": "",
+                        "qs": [],
+                        "url": "__SELF_WEBHOOK_URL__",
+                        "data": "{ \"phase\":\"SLA\", \"ticket_id\":\"{{3.ticket_id}}\" }",
+                        "gzip": true,
+                        "method": "post",
+                        "headers": [
+                          {
+                            "name": "Content-Type",
+                            "value": "application/json"
+                          }
+                        ],
+                        "timeout": "",
+                        "useMtls": false,
+                        "bodyType": "raw",
+                        "contentType": "application/json",
+                        "serializeUrl": false,
+                        "shareCookies": false,
+                        "parseResponse": false,
+                        "followRedirect": true,
+                        "useQuerystring": false,
+                        "followAllRedirects": false,
+                        "rejectUnauthorized": true
+                      },
+                      "metadata": {
+                        "designer": {
+                          "x": 2700,
+                          "y": 0
+                        }
+                      }
+                    },
+                    {
+                      "id": 14,
+                      "module": "gateway:WebhookRespond",
+                      "version": 1,
+                      "parameters": {},
+                      "mapper": {
+                        "status": "200",
+                        "body": "{ \"status\":\"sla_reminded\", \"ticket_id\":\"{{3.ticket_id}}\" }",
+                        "headers": []
+                      },
+                      "metadata": {
+                        "designer": {
+                          "x": 3000,
+                          "y": 0
+                        }
+                      }
+                    }
+                  ]
+                },
+                {
+                  "flow": [
+                    {
+                      "id": 15,
+                      "module": "http:MakeRequest",
+                      "version": 4,
+                      "parameters": {
+                        "handleErrors": false
+                      },
+                      "mapper": {
+                        "ca": "",
+                        "qs": [],
+                        "url": "__SELF_WEBHOOK_URL__",
+                        "data": "{ \"phase\":\"SLA\", \"ticket_id\":\"{{3.ticket_id}}\" }",
+                        "gzip": true,
+                        "method": "post",
+                        "headers": [
+                          {
+                            "name": "Content-Type",
+                            "value": "application/json"
+                          }
+                        ],
+                        "timeout": "",
+                        "useMtls": false,
+                        "bodyType": "raw",
+                        "contentType": "application/json",
+                        "serializeUrl": false,
+                        "shareCookies": false,
+                        "parseResponse": false,
+                        "followRedirect": true,
+                        "useQuerystring": false,
+                        "followAllRedirects": false,
+                        "rejectUnauthorized": true
+                      },
+                      "metadata": {
+                        "designer": {
+                          "x": 2100,
+                          "y": 150
+                        }
+                      }
+                    },
+                    {
+                      "id": 16,
+                      "module": "gateway:WebhookRespond",
+                      "version": 1,
+                      "parameters": {},
+                      "mapper": {
+                        "status": "200",
+                        "body": "{ \"status\":\"sla_requeued\", \"ticket_id\":\"{{3.ticket_id}}\" }",
+                        "headers": []
+                      },
+                      "metadata": {
+                        "designer": {
+                          "x": 2400,
+                          "y": 150
+                        }
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "flow": [
+            {
+              "id": 17,
+              "module": "util:SetVariables",
+              "version": 1,
+              "parameters": {},
+              "mapper": {
+                "scope": "roundtrip",
+                "variables": [
+                  {
+                    "name": "phase",
+                    "value": "{{if(empty(1.phase); \"INGEST\"; 1.phase)}}"
+                  },
+                  {
+                    "name": "eventKey",
+                    "value": "{{coalesce(1.source.raw_id; 1.source.url; formatDate(now; \"x\"))}}:{{lower(1.source.channel)}}"
+                  },
+                  {
+                    "name": "idemKey",
+                    "value": "{{coalesce(1.source.raw_id; 1.source.url; formatDate(now; \"x\"))}}:{{lower(1.source.channel)}}"
+                  }
+                ]
+              },
+              "metadata": {
+                "designer": {
+                  "x": 600,
+                  "y": 600
+                }
+              }
+            },
+            {
+              "id": 18,
+              "module": "http:MakeRequest",
+              "version": 4,
+              "parameters": {
+                "handleErrors": false
+              },
+              "mapper": {
+                "ca": "",
+                "qs": [],
+                "url": "__UPSTASH_REST_URL__/get/event:{{17.eventKey}}",
+                "data": "",
+                "gzip": true,
+                "method": "get",
+                "headers": [
+                  {
+                    "name": "Authorization",
+                    "value": "Bearer __UPSTASH_REST_TOKEN__"
+                  }
+                ],
+                "timeout": "",
+                "useMtls": false,
+                "bodyType": "raw",
+                "contentType": "application/json",
+                "serializeUrl": false,
+                "shareCookies": false,
+                "parseResponse": false,
+                "followRedirect": true,
+                "useQuerystring": false,
+                "followAllRedirects": false,
+                "rejectUnauthorized": true
+              },
+              "metadata": {
+                "designer": {
+                  "x": 900,
+                  "y": 600
+                }
+              }
+            },
+            {
+              "id": 19,
+              "module": "builtin:BasicRouter",
+              "version": 1,
+              "parameters": {
+                "else": 1
+              },
+              "mapper": null,
+              "metadata": {
+                "designer": {
+                  "x": 1200,
+                  "y": 600
+                }
+              },
+              "routes": [
+                {
+                  "flow": [
+                    {
+                      "id": 20,
+                      "module": "util:SetVariables",
+                      "version": 1,
+                      "parameters": {},
+                      "filter": {
+                        "name": "duplicate event",
+                        "conditions": [
+                          [
+                            {
+                              "a": "{{18.body}}",
+                              "o": "text:notempty",
+                              "b": ""
+                            }
+                          ]
+                        ]
+                      },
+                      "mapper": {
+                        "scope": "roundtrip",
+                        "variables": [
+                          {
+                            "name": "status",
+                            "value": "duplicate_event_ignored"
+                          }
+                        ]
+                      },
+                      "metadata": {
+                        "designer": {
+                          "x": 1500,
+                          "y": 300
+                        }
+                      }
+                    },
+                    {
+                      "id": 21,
+                      "module": "gateway:WebhookRespond",
+                      "version": 1,
+                      "parameters": {},
+                      "mapper": {
+                        "status": "200",
+                        "body": "{ \"status\":\"duplicate_event_ignored\", \"idemKey\":\"{{17.idemKey}}\" }",
+                        "headers": []
+                      },
+                      "metadata": {
+                        "designer": {
+                          "x": 1800,
+                          "y": 300
+                        }
+                      }
+                    }
+                  ]
+                },
+                {
+                  "flow": [
+                    {
+                      "id": 22,
+                      "module": "http:MakeRequest",
+                      "version": 4,
+                      "parameters": {
+                        "handleErrors": false
+                      },
+                      "mapper": {
+                        "ca": "",
+                        "qs": [],
+                        "url": "__UPSTASH_REST_URL__/set/event:{{17.eventKey}}/{{formatDate(now; \"YYYY-MM-DDTHH:mm:ss[Z]\")}}?EX=86400",
+                        "data": "",
+                        "gzip": true,
+                        "method": "get",
+                        "headers": [
+                          {
+                            "name": "Authorization",
+                            "value": "Bearer __UPSTASH_REST_TOKEN__"
+                          }
+                        ],
+                        "timeout": "",
+                        "useMtls": false,
+                        "bodyType": "raw",
+                        "contentType": "application/json",
+                        "serializeUrl": false,
+                        "shareCookies": false,
+                        "parseResponse": false,
+                        "followRedirect": true,
+                        "useQuerystring": false,
+                        "followAllRedirects": false,
+                        "rejectUnauthorized": true
+                      },
+                      "metadata": {
+                        "designer": {
+                          "x": 1500,
+                          "y": 750
+                        }
+                      }
+                    },
+                    {
+                      "id": 23,
+                      "module": "http:MakeRequest",
+                      "version": 4,
+                      "parameters": {
+                        "handleErrors": false
+                      },
+                      "mapper": {
+                        "ca": "",
+                        "qs": [],
+                        "url": "__UPSTASH_REST_URL__/get/tier:{{lower(1.source.channel)}}",
+                        "data": "",
+                        "gzip": true,
+                        "method": "get",
+                        "headers": [
+                          {
+                            "name": "Authorization",
+                            "value": "Bearer __UPSTASH_REST_TOKEN__"
+                          }
+                        ],
+                        "timeout": "",
+                        "useMtls": false,
+                        "bodyType": "raw",
+                        "contentType": "application/json",
+                        "serializeUrl": false,
+                        "shareCookies": false,
+                        "parseResponse": false,
+                        "followRedirect": true,
+                        "useQuerystring": false,
+                        "followAllRedirects": false,
+                        "rejectUnauthorized": true
+                      },
+                      "metadata": {
+                        "designer": {
+                          "x": 1800,
+                          "y": 750
+                        }
+                      }
+                    },
+                    {
+                      "id": 24,
+                      "module": "util:SetVariables",
+                      "version": 1,
+                      "parameters": {},
+                      "mapper": {
+                        "scope": "roundtrip",
+                        "variables": [
+                          {
+                            "name": "photos_count",
+                            "value": "{{length(1.evidence.photos[])}}"
+                          },
+                          {
+                            "name": "links_count",
+                            "value": "{{length(1.evidence.links[])}}"
+                          },
+                          {
+                            "name": "E",
+                            "value": "{{if(photos_count >= 2; 1; if(photos_count = 1; 0.7; if(links_count > 0; 0.4; 0)))}}"
+                          },
+                          {
+                            "name": "L",
+                            "value": "{{if(and(not(empty(1.location.lat)); not(empty(1.location.lon)); not(empty(1.location.address))); 1; if(and(not(empty(1.location.address)); not(empty(1.location.ward))); 0.7; if(not(empty(1.location.ward)); 0.4; 0)))}}"
+                          },
+                          {
+                            "name": "C",
+                            "value": "{{if(and(not(empty(1.issue.summary)); not(empty(1.issue.category)); not(empty(1.issue.details))); 1; if(and(not(empty(1.issue.summary)); not(empty(1.issue.category))); 0.7; if(not(empty(1.issue.summary)); 0.4; 0)))}}"
+                          },
+                          {
+                            "name": "content_confidence",
+                            "value": "{{round(0.40*E + 0.35*L + 0.25*C; 2)}}"
+                          },
+                          {
+                            "name": "source_confidence",
+                            "value": "{{if(empty(23.body); 0.55; 23.body)}}"
+                          },
+                          {
+                            "name": "final_confidence",
+                            "value": "{{round(source_confidence * content_confidence; 2)}}"
+                          },
+                          {
+                            "name": "gate_status",
+                            "value": "{{if(final_confidence < 0.25; \"reject_low_signal\"; if(final_confidence < 0.55; \"needs_info\"; \"action\"))}}"
+                          },
+                          {
+                            "name": "mepp",
+                            "value": "{ \"issue\": { \"summary\":\"{{1.issue.summary}}\", \"category\":\"{{1.issue.category}}\", \"details\":\"{{1.issue.details}}\" }, \"location\": { \"lat\": \"{{1.location.lat}}\", \"lon\":\"{{1.location.lon}}\", \"address_text\":\"{{1.location.address}}\", \"ward\":\"{{1.location.ward}}\" }, \"evidence\": { \"photos\": {{1.evidence.photos}}, \"links\": {{1.evidence.links}} }, \"provenance\": { \"channel\":\"{{1.source.channel}}\", \"raw_id\":\"{{coalesce(1.source.raw_id; 1.source.url; 17.eventKey)}}\" } }"
+                          },
+                          {
+                            "name": "gating_json",
+                            "value": "{ \"status\":\"{{gate_status}}\", \"source_confidence\":\"{{source_confidence}}\", \"content_confidence\":\"{{content_confidence}}\", \"final_confidence\":\"{{final_confidence}}\" }"
+                          }
+                        ]
+                      },
+                      "metadata": {
+                        "designer": {
+                          "x": 2100,
+                          "y": 750
+                        }
+                      }
+                    },
+                    {
+                      "id": 25,
+                      "module": "builtin:BasicRouter",
+                      "version": 1,
+                      "parameters": {
+                        "else": 1
+                      },
+                      "mapper": null,
+                      "metadata": {
+                        "designer": {
+                          "x": 2400,
+                          "y": 750
+                        }
+                      },
+                      "routes": [
+                        {
+                          "flow": [
+                            {
+                              "id": 26,
+                              "module": "gateway:WebhookRespond",
+                              "version": 1,
+                              "parameters": {},
+                              "filter": {
+                                "name": "reject_low_signal",
+                                "conditions": [
+                                  [
+                                    {
+                                      "a": "{{24.gate_status}}",
+                                      "o": "text:equal",
+                                      "b": "reject_low_signal"
+                                    }
+                                  ]
+                                ]
+                              },
+                              "mapper": {
+                                "status": "200",
+                                "body": "{ \"status\":\"reject_low_signal\", \"final\":\"{{24.final_confidence}}\" }",
+                                "headers": []
+                              },
+                              "metadata": {
+                                "designer": {
+                                  "x": 2700,
+                                  "y": 450
+                                }
+                              }
+                            }
+                          ]
+                        },
+                        {
+                          "flow": [
+                            {
+                              "id": 27,
+                              "module": "gateway:WebhookRespond",
+                              "version": 1,
+                              "parameters": {},
+                              "filter": {
+                                "name": "needs_info",
+                                "conditions": [
+                                  [
+                                    {
+                                      "a": "{{24.gate_status}}",
+                                      "o": "text:equal",
+                                      "b": "needs_info"
+                                    }
+                                  ]
+                                ]
+                              },
+                              "mapper": {
+                                "status": "200",
+                                "body": "{ \"status\":\"needs_info\", \"final\":\"{{24.final_confidence}}\", \"missing_fields\":[\"evidence.photos>=2\",\"location.lat/lon/address\",\"issue.details (preferred)\"] }",
+                                "headers": []
+                              },
+                              "metadata": {
+                                "designer": {
+                                  "x": 2700,
+                                  "y": 600
+                                }
+                              }
+                            }
+                          ]
+                        },
+                        {
+                          "flow": [
+                            {
+                              "id": 28,
+                              "module": "http:MakeRequest",
+                              "version": 4,
+                              "parameters": {
+                                "handleErrors": false
+                              },
+                              "mapper": {
+                                "ca": "",
+                                "qs": [],
+                                "url": "__SIDECAR_BASE_URL__/dedupe",
+                                "data": "{ \"mepp\": {{24.mepp}} }",
+                                "gzip": true,
+                                "method": "post",
+                                "headers": [
+                                  {
+                                    "name": "Content-Type",
+                                    "value": "application/json"
+                                  }
+                                ],
+                                "timeout": "",
+                                "useMtls": false,
+                                "bodyType": "raw",
+                                "contentType": "application/json",
+                                "serializeUrl": false,
+                                "shareCookies": false,
+                                "parseResponse": false,
+                                "followRedirect": true,
+                                "useQuerystring": false,
+                                "followAllRedirects": false,
+                                "rejectUnauthorized": true
+                              },
+                              "metadata": {
+                                "designer": {
+                                  "x": 2700,
+                                  "y": 900
+                                }
+                              }
+                            },
+                            {
+                              "id": 29,
+                              "module": "builtin:BasicRouter",
+                              "version": 1,
+                              "parameters": {
+                                "else": 1
+                              },
+                              "mapper": null,
+                              "metadata": {
+                                "designer": {
+                                  "x": 3000,
+                                  "y": 900
+                                }
+                              },
+                              "routes": [
+                                {
+                                  "flow": [
+                                    {
+                                      "id": 30,
+                                      "module": "gateway:WebhookRespond",
+                                      "version": 1,
+                                      "parameters": {},
+                                      "filter": {
+                                        "name": "is duplicate_of",
+                                        "conditions": [
+                                          [
+                                            {
+                                              "a": "{{28.body.duplicate_of}}",
+                                              "o": "text:notempty",
+                                              "b": ""
+                                            }
+                                          ]
+                                        ]
+                                      },
+                                      "mapper": {
+                                        "status": "200",
+                                        "body": "{ \"status\":\"duplicate_detected\", \"of\":\"{{28.body.duplicate_of}}\" }",
+                                        "headers": []
+                                      },
+                                      "metadata": {
+                                        "designer": {
+                                          "x": 3300,
+                                          "y": 750
+                                        }
+                                      }
+                                    }
+                                  ]
+                                },
+                                {
+                                  "flow": [
+                                    {
+                                      "id": 31,
+                                      "module": "http:MakeRequest",
+                                      "version": 4,
+                                      "parameters": {
+                                        "handleErrors": false
+                                      },
+                                      "mapper": {
+                                        "ca": "",
+                                        "qs": [],
+                                        "url": "__SIDECAR_BASE_URL__/cluster",
+                                        "data": "{ \"mepp\": {{24.mepp}} }",
+                                        "gzip": true,
+                                        "method": "post",
+                                        "headers": [
+                                          {
+                                            "name": "Content-Type",
+                                            "value": "application/json"
+                                          }
+                                        ],
+                                        "timeout": "",
+                                        "useMtls": false,
+                                        "bodyType": "raw",
+                                        "contentType": "application/json",
+                                        "serializeUrl": false,
+                                        "shareCookies": false,
+                                        "parseResponse": false,
+                                        "followRedirect": true,
+                                        "useQuerystring": false,
+                                        "followAllRedirects": false,
+                                        "rejectUnauthorized": true
+                                      },
+                                      "metadata": {
+                                        "designer": {
+                                          "x": 3300,
+                                          "y": 1050
+                                        }
+                                      }
+                                    },
+                                    {
+                                      "id": 32,
+                                      "module": "http:MakeRequest",
+                                      "version": 4,
+                                      "parameters": {
+                                        "handleErrors": false
+                                      },
+                                      "mapper": {
+                                        "ca": "",
+                                        "qs": [],
+                                        "url": "__SIDECAR_BASE_URL__/score",
+                                        "data": "{ \"mepp\": {{24.mepp}} }",
+                                        "gzip": true,
+                                        "method": "post",
+                                        "headers": [
+                                          {
+                                            "name": "Content-Type",
+                                            "value": "application/json"
+                                          }
+                                        ],
+                                        "timeout": "",
+                                        "useMtls": false,
+                                        "bodyType": "raw",
+                                        "contentType": "application/json",
+                                        "serializeUrl": false,
+                                        "shareCookies": false,
+                                        "parseResponse": false,
+                                        "followRedirect": true,
+                                        "useQuerystring": false,
+                                        "followAllRedirects": false,
+                                        "rejectUnauthorized": true
+                                      },
+                                      "metadata": {
+                                        "designer": {
+                                          "x": 3600,
+                                          "y": 1050
+                                        }
+                                      }
+                                    },
+                                    {
+                                      "id": 33,
+                                      "module": "http:MakeRequest",
+                                      "version": 4,
+                                      "parameters": {
+                                        "handleErrors": false
+                                      },
+                                      "mapper": {
+                                        "ca": "",
+                                        "qs": [],
+                                        "url": "__SIDECAR_BASE_URL__/route",
+                                        "data": "{ \"mepp\": {{24.mepp}} }",
+                                        "gzip": true,
+                                        "method": "post",
+                                        "headers": [
+                                          {
+                                            "name": "Content-Type",
+                                            "value": "application/json"
+                                          }
+                                        ],
+                                        "timeout": "",
+                                        "useMtls": false,
+                                        "bodyType": "raw",
+                                        "contentType": "application/json",
+                                        "serializeUrl": false,
+                                        "shareCookies": false,
+                                        "parseResponse": false,
+                                        "followRedirect": true,
+                                        "useQuerystring": false,
+                                        "followAllRedirects": false,
+                                        "rejectUnauthorized": true
+                                      },
+                                      "metadata": {
+                                        "designer": {
+                                          "x": 3900,
+                                          "y": 1050
+                                        }
+                                      }
+                                    },
+                                    {
+                                      "id": 34,
+                                      "module": "http:MakeRequest",
+                                      "version": 4,
+                                      "parameters": {
+                                        "handleErrors": false
+                                      },
+                                      "mapper": {
+                                        "ca": "",
+                                        "qs": [],
+                                        "url": "__SIDECAR_BASE_URL__/pack",
+                                        "data": "{ \"mepp\": {{24.mepp}}, \"gating\": {{24.gating_json}}, \"routing\": {{33.body}}, \"cluster\": {{31.body}} }",
+                                        "gzip": true,
+                                        "method": "post",
+                                        "headers": [
+                                          {
+                                            "name": "Content-Type",
+                                            "value": "application/json"
+                                          }
+                                        ],
+                                        "timeout": "",
+                                        "useMtls": false,
+                                        "bodyType": "raw",
+                                        "contentType": "application/json",
+                                        "serializeUrl": false,
+                                        "shareCookies": false,
+                                        "parseResponse": false,
+                                        "followRedirect": true,
+                                        "useQuerystring": false,
+                                        "followAllRedirects": false,
+                                        "rejectUnauthorized": true
+                                      },
+                                      "metadata": {
+                                        "designer": {
+                                          "x": 4200,
+                                          "y": 1050
+                                        }
+                                      }
+                                    },
+                                    {
+                                      "id": 35,
+                                      "module": "http:MakeRequest",
+                                      "version": 4,
+                                      "parameters": {
+                                        "handleErrors": false
+                                      },
+                                      "mapper": {
+                                        "ca": "",
+                                        "qs": [],
+                                        "url": "__UPSTASH_REST_URL__/get/routing:{{33.body.dest}}",
+                                        "data": "",
+                                        "gzip": true,
+                                        "method": "get",
+                                        "headers": [
+                                          {
+                                            "name": "Authorization",
+                                            "value": "Bearer __UPSTASH_REST_TOKEN__"
+                                          }
+                                        ],
+                                        "timeout": "",
+                                        "useMtls": false,
+                                        "bodyType": "raw",
+                                        "contentType": "application/json",
+                                        "serializeUrl": false,
+                                        "shareCookies": false,
+                                        "parseResponse": false,
+                                        "followRedirect": true,
+                                        "useQuerystring": false,
+                                        "followAllRedirects": false,
+                                        "rejectUnauthorized": true
+                                      },
+                                      "metadata": {
+                                        "designer": {
+                                          "x": 4500,
+                                          "y": 1050
+                                        }
+                                      }
+                                    },
+                                    {
+                                      "id": 36,
+                                      "module": "http:MakeRequest",
+                                      "version": 4,
+                                      "parameters": {
+                                        "handleErrors": false
+                                      },
+                                      "mapper": {
+                                        "ca": "",
+                                        "qs": [],
+                                        "url": "__UPSTASH_REST_URL__/get/filed:{{17.idemKey}}",
+                                        "data": "",
+                                        "gzip": true,
+                                        "method": "get",
+                                        "headers": [
+                                          {
+                                            "name": "Authorization",
+                                            "value": "Bearer __UPSTASH_REST_TOKEN__"
+                                          }
+                                        ],
+                                        "timeout": "",
+                                        "useMtls": false,
+                                        "bodyType": "raw",
+                                        "contentType": "application/json",
+                                        "serializeUrl": false,
+                                        "shareCookies": false,
+                                        "parseResponse": false,
+                                        "followRedirect": true,
+                                        "useQuerystring": false,
+                                        "followAllRedirects": false,
+                                        "rejectUnauthorized": true
+                                      },
+                                      "metadata": {
+                                        "designer": {
+                                          "x": 4800,
+                                          "y": 1050
+                                        }
+                                      }
+                                    },
+                                    {
+                                      "id": 37,
+                                      "module": "builtin:BasicRouter",
+                                      "version": 1,
+                                      "parameters": {
+                                        "else": 1
+                                      },
+                                      "mapper": null,
+                                      "metadata": {
+                                        "designer": {
+                                          "x": 5100,
+                                          "y": 1050
+                                        }
+                                      },
+                                      "routes": [
+                                        {
+                                          "flow": [
+                                            {
+                                              "id": 38,
+                                              "module": "gateway:WebhookRespond",
+                                              "version": 1,
+                                              "parameters": {},
+                                              "filter": {
+                                                "name": "already filed",
+                                                "conditions": [
+                                                  [
+                                                    {
+                                                      "a": "{{36.body}}",
+                                                      "o": "text:notempty",
+                                                      "b": ""
+                                                    }
+                                                  ]
+                                                ]
+                                              },
+                                              "mapper": {
+                                                "status": "200",
+                                                "body": "{ \"status\":\"already_filed\", \"ticket_id\":\"{{36.body}}\", \"pack_pdf\":\"{{34.body.pdf_url}}\", \"pack_json\":\"{{34.body.json_url}}\" }",
+                                                "headers": []
+                                              },
+                                              "metadata": {
+                                                "designer": {
+                                                  "x": 5400,
+                                                  "y": 900
+                                                }
+                                              }
+                                            }
+                                          ]
+                                        },
+                                        {
+                                          "flow": [
+                                            {
+                                              "id": 39,
+                                              "module": "util:SetVariables",
+                                              "version": 1,
+                                              "parameters": {},
+                                              "mapper": {
+                                                "scope": "roundtrip",
+                                                "variables": [
+                                                  {
+                                                    "name": "connector_name",
+                                                    "value": "{{35.body}}"
+                                                  },
+                                                  {
+                                                    "name": "ticket_id",
+                                                    "value": "{{concat( if(connector_name = \"connector_cpgrams\"; \"CP-\"; if(connector_name = \"connector_tncm\"; \"TN-\"; \"SW-\")); formatDate(now; \"x\"))}}"
+                                                  },
+                                                  {
+                                                    "name": "mode",
+                                                    "value": "shadow"
+                                                  }
+                                                ]
+                                              },
+                                              "metadata": {
+                                                "designer": {
+                                                  "x": 5400,
+                                                  "y": 1200
+                                                }
+                                              }
+                                            },
+                                            {
+                                              "id": 40,
+                                              "module": "http:MakeRequest",
+                                              "version": 4,
+                                              "parameters": {
+                                                "handleErrors": false
+                                              },
+                                              "mapper": {
+                                                "ca": "",
+                                                "qs": [],
+                                                "url": "__UPSTASH_REST_URL__/set/filed:{{17.idemKey}}",
+                                                "data": "{\"ticket_id\":\"{{39.ticket_id}}\",\"connector\":\"{{39.connector_name}}\",\"mode\":\"{{39.mode}}\"}",
+                                                "gzip": true,
+                                                "method": "post",
+                                                "headers": [
+                                                  {
+                                                    "name": "Authorization",
+                                                    "value": "Bearer __UPSTASH_REST_TOKEN__"
+                                                  },
+                                                  {
+                                                    "name": "Content-Type",
+                                                    "value": "application/json"
+                                                  }
+                                                ],
+                                                "timeout": "",
+                                                "useMtls": false,
+                                                "bodyType": "raw",
+                                                "contentType": "application/json",
+                                                "serializeUrl": false,
+                                                "shareCookies": false,
+                                                "parseResponse": false,
+                                                "followRedirect": true,
+                                                "useQuerystring": false,
+                                                "followAllRedirects": false,
+                                                "rejectUnauthorized": true
+                                              },
+                                              "metadata": {
+                                                "designer": {
+                                                  "x": 5700,
+                                                  "y": 1200
+                                                }
+                                              }
+                                            },
+                                            {
+                                              "id": 41,
+                                              "module": "http:MakeRequest",
+                                              "version": 4,
+                                              "parameters": {
+                                                "handleErrors": false
+                                              },
+                                              "mapper": {
+                                                "ca": "",
+                                                "qs": [],
+                                                "url": "__UPSTASH_REST_URL__/set/sla:{{39.ticket_id}}",
+                                                "data": "{\"ticket_id\":\"{{39.ticket_id}}\",\"dest\":\"{{33.body.dest}}\",\"pack_pdf\":\"{{34.body.pdf_url}}\",\"first_seen_ts\":\"{{formatDate(now; \\\"YYYY-MM-DDTHH:mm:ss[Z]\\\")}}\",\"reminder_s\":3600,\"deadline_s\":86400,\"reminded\":false,\"escalated\":false}",
+                                                "gzip": true,
+                                                "method": "post",
+                                                "headers": [
+                                                  {
+                                                    "name": "Authorization",
+                                                    "value": "Bearer __UPSTASH_REST_TOKEN__"
+                                                  },
+                                                  {
+                                                    "name": "Content-Type",
+                                                    "value": "application/json"
+                                                  }
+                                                ],
+                                                "timeout": "",
+                                                "useMtls": false,
+                                                "bodyType": "raw",
+                                                "contentType": "application/json",
+                                                "serializeUrl": false,
+                                                "shareCookies": false,
+                                                "parseResponse": false,
+                                                "followRedirect": true,
+                                                "useQuerystring": false,
+                                                "followAllRedirects": false,
+                                                "rejectUnauthorized": true
+                                              },
+                                              "metadata": {
+                                                "designer": {
+                                                  "x": 6000,
+                                                  "y": 1200
+                                                }
+                                              }
+                                            },
+                                            {
+                                              "id": 42,
+                                              "module": "http:MakeRequest",
+                                              "version": 4,
+                                              "parameters": {
+                                                "handleErrors": false
+                                              },
+                                              "mapper": {
+                                                "ca": "",
+                                                "qs": [],
+                                                "url": "__SELF_WEBHOOK_URL__",
+                                                "data": "{ \"phase\":\"SLA\", \"ticket_id\":\"{{39.ticket_id}}\" }",
+                                                "gzip": true,
+                                                "method": "post",
+                                                "headers": [
+                                                  {
+                                                    "name": "Content-Type",
+                                                    "value": "application/json"
+                                                  }
+                                                ],
+                                                "timeout": "",
+                                                "useMtls": false,
+                                                "bodyType": "raw",
+                                                "contentType": "application/json",
+                                                "serializeUrl": false,
+                                                "shareCookies": false,
+                                                "parseResponse": false,
+                                                "followRedirect": true,
+                                                "useQuerystring": false,
+                                                "followAllRedirects": false,
+                                                "rejectUnauthorized": true
+                                              },
+                                              "metadata": {
+                                                "designer": {
+                                                  "x": 6300,
+                                                  "y": 1200
+                                                }
+                                              }
+                                            },
+                                            {
+                                              "id": 43,
+                                              "module": "gateway:WebhookRespond",
+                                              "version": 1,
+                                              "parameters": {},
+                                              "mapper": {
+                                                "status": "200",
+                                                "body": "{ \"status\":\"filed\", \"ticket_id\":\"{{39.ticket_id}}\", \"connector\":\"{{39.connector_name}}\", \"pack_pdf\":\"{{34.body.pdf_url}}\", \"pack_json\":\"{{34.body.json_url}}\" }",
+                                                "headers": []
+                                              },
+                                              "metadata": {
+                                                "designer": {
+                                                  "x": 6600,
+                                                  "y": 1200
+                                                }
+                                              }
+                                            }
+                                          ]
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "metadata": {
+    "instant": true,
+    "version": 1,
+    "scenario": {
+      "roundtrips": 1,
+      "maxErrors": 3,
+      "autoCommit": true,
+      "autoCommitTriggerLast": true,
+      "sequential": false,
+      "slots": null,
+      "confidential": false,
+      "dataloss": false,
+      "dlq": false,
+      "freshVariables": false
+    },
+    "designer": {
+      "orphans": []
+    },
+    "zone": "eu1.make.com",
+    "notes": []
+  }
+}
