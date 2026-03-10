@@ -9,7 +9,7 @@ This document is the official tracker for the CivicResolve MVP implementation.
 
 ## Acceptance Criteria
 - [ ] Gate accepts SIGNAL_INPUT_JSON and classifies Action/Draft/Reject.
-- [ ] Sidecar exposes `/cluster` and `/pack` (JSON+PDF artifact saved; URL returned).
+- [ ] Intelligence Service exposes `/cluster` and `/pack` (JSON+PDF artifact saved; URL returned).
 - [ ] Orchestrator flow: `/dedupe` → `/cluster` → `/score` → `/route` → `/pack`; runbook JSON output.
 - [ ] Discovery Worker posts Signal to Orchestrator (Tier-3 discovery:web).
 - [ ] Connectors stubs: CPGRAMS / Swachhata / TN CM (enqueue + simulated success).

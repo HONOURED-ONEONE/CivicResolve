@@ -149,6 +149,9 @@ app.post('/ingest', async (req, res) => {
 });
 
 const port = process.env.PORT || 3001;
-app.listen(port, () => {
-  console.log(`Case Orchestrator running on port ${port}`);
-});
+if (require.main === module) {
+  app.listen(port, () => {
+    console.log(`Case Orchestrator running on port ${port}`);
+  });
+}
+module.exports = app;

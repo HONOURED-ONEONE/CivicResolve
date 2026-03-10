@@ -5,7 +5,7 @@ set -euo pipefail
 
 MAIN_WORKING_BRANCH="feature/mvp-2026-03"
 SUB_BRANCHES=(
-  "feature/sidecar-cluster-pack"
+  "feature/intelligence-cluster-pack"
   "feature/orchestrator-signal-gate"
   "feature/connectors-stub"
   "feature/ingest-matrix-worker"

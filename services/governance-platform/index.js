@@ -26,6 +26,9 @@ app.get('/reports', (req, res) => {
 });
 
 const port = process.env.PORT || 3005;
-app.listen(port, () => {
-  console.log(`Governance Platform running on port ${port}`);
-});
+if (require.main === module) {
+  app.listen(port, () => {
+    console.log(`Governance Platform running on port ${port}`);
+  });
+}
+module.exports = app;

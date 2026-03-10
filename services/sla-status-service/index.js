@@ -50,6 +50,9 @@ app.get('/status/simulate/:ticket_id', async (req, res) => {
 });
 
 const port = process.env.PORT || 3004;
-app.listen(port, () => {
-  console.log(`SLA Status Service running on port ${port}`);
-});
+if (require.main === module) {
+  app.listen(port, () => {
+    console.log(`SLA Status Service running on port ${port}`);
+  });
+}
+module.exports = app;

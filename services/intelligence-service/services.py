@@ -8,7 +8,8 @@ import hashlib
 import time
 from typing import Dict, List, Optional, Tuple, Any, Set
 
-from .schemas import MEPP, DedupeRes, ScoreRes, RouteRes, StatusRes, ClusterRes, PackRes, PackReq
+import schemas
+from schemas import MEPP, DedupeRes, ScoreRes, RouteRes, StatusRes, ClusterRes, PackRes, PackReq
 
 # --- Globals / Config ---
 CLUSTER_DB = os.environ.get("CLUSTER_DB", "cluster.db")

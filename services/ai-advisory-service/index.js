@@ -27,6 +27,9 @@ app.post('/search_citations', handleFailOpen(async (req, res) => {
 }, []));
 
 const port = process.env.PORT || 3002;
-app.listen(port, () => {
-  console.log(`AI Advisory running on port ${port}`);
-});
+if (require.main === module) {
+  app.listen(port, () => {
+    console.log(`AI Advisory running on port ${port}`);
+  });
+}
+module.exports = app;

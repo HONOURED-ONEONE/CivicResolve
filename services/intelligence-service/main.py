@@ -12,7 +12,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 
-from . import schemas, services
+import schemas
+import services
 
 # --- Configuration ---
 LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()
@@ -21,18 +22,18 @@ CORS_ALLOW_ORIGINS = os.environ.get("CORS_ALLOW_ORIGINS", "*").split(",")
 
 # --- Logging Setup ---
 logging.basicConfig(level=LOG_LEVEL)
-logger = logging.getLogger("sidecar")
+logger = logging.getLogger("intelligence-service")
 
 # --- App Setup ---
 app = FastAPI(
-    title="Sidecar API",
+    title="Intelligence Service API",
     version="1.0.0",
     description="Helper service for CivicResolve orchestration."
 )
 
 @app.on_event("startup")
 async def startup_event():
-    logger.info(f"Starting Sidecar. CORS_ALLOW_ORIGINS={CORS_ALLOW_ORIGINS}")
+    logger.info(f"Starting Intelligence Service. CORS_ALLOW_ORIGINS={CORS_ALLOW_ORIGINS}")
     if API_KEY:
         masked_key = API_KEY[:4] + "*" * (len(API_KEY) - 4) if len(API_KEY) > 4 else "****"
         logger.info(f"API_KEY is set: {masked_key}")
