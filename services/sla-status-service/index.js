@@ -1,10 +1,11 @@
 const express = require('express');
+const { JSONStore } = require('@civicresolve/shared-utils');
 const app = express();
 app.use(express.json());
 
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
 
-const ticketState = new Map();
+const ticketState = new JSONStore('sla_ticket_state');
 
 app.post('/sla/init', async (req, res) => {
   const { ticket_id, dest } = req.body;
@@ -28,7 +29,7 @@ app.get('/status/simulate/:ticket_id', async (req, res) => {
   const sequence = ["FILED", "IN_PROGRESS", "ACTION_TAKEN", "RESOLVED", "CLOSED"];
   
   if (!ticketState.has(ticket_id)) {
-    ticketState.set(ticket_id, { status: 'FILED', updated_at: new Date() });
+    ticketState.set(ticket_id, { status: 'FILED', updated_at: new Date().toISOString() });
   }
 
   const entry = ticketState.get(ticket_id);
@@ -38,7 +39,8 @@ app.get('/status/simulate/:ticket_id', async (req, res) => {
     const idx = sequence.indexOf(entry.status);
     if (idx !== -1 && idx < sequence.length - 1) {
       entry.status = sequence[idx + 1];
-      entry.updated_at = new Date();
+      entry.updated_at = new Date().toISOString();
+      ticketState.set(ticket_id, entry);
     }
   }
 

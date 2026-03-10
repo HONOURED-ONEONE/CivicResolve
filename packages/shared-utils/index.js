@@ -15,7 +15,10 @@ function handleFailOpen(fn, fallback) {
   };
 }
 
+const { JSONStore } = require('./persistence');
+
 module.exports = {
   generateTraceId,
-  handleFailOpen
+  handleFailOpen,
+  JSONStore
 };

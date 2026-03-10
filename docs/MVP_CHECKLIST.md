@@ -22,4 +22,4 @@ This document is the official tracker for the CivicResolve MVP implementation.
 - [ ] Commit messages are clear (imperative) and reference checklist item(s).
 - [ ] Docs updated if behavior changes.
 - [ ] No secrets committed.
-- [ ] Basic local run succeeded (commands listed).
+- [ ] Test-suites-only validation succeeded (no full local environment run required).

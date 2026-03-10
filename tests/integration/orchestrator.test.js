@@ -10,19 +10,25 @@ const slaApp = require('../../services/sla-status-service/index');
 
 describe('Integration Tests (Mocked Services)', () => {
   let originalPost;
+  let mockState = {};
 
   before(() => {
     originalPost = axios.post;
     axios.post = async (url, data, config) => {
       // Mock Intelligence
-      if (url.includes('/dedupe')) return { data: {} };
-      if (url.includes('/cluster')) return { data: { cluster_id: 'CL-001' } };
-      if (url.includes('/score')) return { data: { credibility_score: 0.9 } };
-      if (url.includes('/route')) return { data: { dest: 'TN_CM_HELPLINE' } };
-      if (url.includes('/pack')) return { data: { pdf_url: 'http://mock-pack.pdf' } };
+      if (url.includes('/dedupe')) return { data: { similarity: 0.1 } };
+      if (url.includes('/cluster')) return { data: mockState.clusterResponse || { cluster_id: 'CL-001' } };
+      if (url.includes('/score')) return { data: { score: 0.9 } };
+      if (url.includes('/route')) return { data: mockState.routeResponse || { dest: 'TN_CM_HELPLINE' } };
+      if (url.includes('/pack')) return { data: { pdf_url: 'http://mock-pack.pdf', pack_id: 'PK-123' } };
 
       // Mock AI Advisory
-      if (url.includes('/draft_assist')) return { data: { draft: 'Mocked draft response' } };
+      if (url.includes('/draft_assist')) {
+        if (mockState.draftAssistThrows) {
+          throw new Error('AI Service Down');
+        }
+        return { data: { draft: 'Mocked draft response' } };
+      }
 
       // Mock Connector
       if (url.includes('/file')) return { data: { status: 'filed', ticket_id: 'TN-1234' } };
@@ -42,6 +48,7 @@ describe('Integration Tests (Mocked Services)', () => {
   });
 
   test('Test 1: Orchestrator Happy Path', async () => {
+    mockState = {};
     const res = await request(orchestratorApp)
       .post('/ingest')
       .send({
@@ -59,7 +66,8 @@ describe('Integration Tests (Mocked Services)', () => {
     assert.ok(res.body.pack, "Should return pack info");
   });
 
-  test('Test 2: AI Fail-Open Path (Needs Info)', async () => {
+  test('Test 2: AI Fail-Open Path (Needs Info) - Happy AI', async () => {
+    mockState = {};
     const res = await request(orchestratorApp)
       .post('/ingest')
       .send({
@@ -78,6 +86,7 @@ describe('Integration Tests (Mocked Services)', () => {
   });
 
   test('Test 3: Connector Stub Path', async () => {
+    mockState = {};
     const res = await request(connectorApp)
       .post('/file')
       .send({
@@ -91,6 +100,7 @@ describe('Integration Tests (Mocked Services)', () => {
   });
 
   test('Test 4: SLA Reminder/Escalation Simulation Path', async () => {
+    mockState = {};
     const ticketId = "TEST-SLA-01";
     // Init SLA
     await request(slaApp)
@@ -102,5 +112,42 @@ describe('Integration Tests (Mocked Services)', () => {
     
     assert.strictEqual(res.status, 200);
     assert.strictEqual(res.body.status, "FILED", "Should start at FILED");
+  });
+
+  test('Test 5: Downstream Contract Mismatch Behavior', async () => {
+    // Missing 'dest' in route response
+    mockState = { routeResponse: { unexpected_key: 'value' } };
+    
+    const res = await request(orchestratorApp)
+      .post('/ingest')
+      .send({
+        ticket_id: "TEST-005",
+        issue: { summary: "Pothole", category: "Roads", details: "Deep" },
+        location: { lat: 11.1, lon: 77.3, address: "Main", ward: "14" },
+        evidence: { photos: ["http://img1.com", "http://img2.com"] },
+        source: { channel: "app", confidence: 0.8 }
+      });
+      
+    assert.strictEqual(res.status, 502, "Should return 502 Bad Gateway");
+    assert.ok(res.body.error.includes("intelligence service"), "Should indicate intelligence service error");
+  });
+
+  test('Test 6: AI Fail-Open Timeout/Error Behavior', async () => {
+    mockState = { draftAssistThrows: true }; // Make AI throw an error
+    
+    const res = await request(orchestratorApp)
+      .post('/ingest')
+      .send({
+        ticket_id: "TEST-006",
+        issue: { summary: "Garbage", category: "Sanitation" },
+        location: { ward: "12" },
+        evidence: { links: ["http://some-link.com"] },
+        source: { confidence: 0.8 }
+      });
+      
+    assert.strictEqual(res.status, 200, "Should still return 200 despite AI error");
+    assert.strictEqual(res.body.status, "needs_info", "Should be needs_info");
+    assert.strictEqual(res.body.mepp.issue.draft_assistance, undefined, "Should not have draft assistance");
+    assert.strictEqual(res.body.mepp.issue.draft_derived, undefined, "Should not have derived flag");
   });
 });

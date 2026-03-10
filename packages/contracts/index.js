@@ -40,5 +40,41 @@ module.exports = {
         snippet: { type: "string" }
       }
     }
+  },
+  FILING_REQUEST_SCHEMA: {
+    type: "object",
+    properties: {
+      case_id: { type: "string" },
+      destination: { type: "string" },
+      idempotency_key: { type: "string" },
+      payload: { type: "object" },
+      pack_url: { type: "string" }
+    },
+    required: ["case_id", "destination"]
+  },
+  FILING_RESPONSE_SCHEMA: {
+    type: "object",
+    properties: {
+      status: { type: "string" },
+      ticket_id: { type: "string" },
+      connector: { type: "string" },
+      pack_pdf: { type: "string" },
+      metadata: { type: "object" },
+      error: { type: "string" }
+    },
+    required: ["status", "connector"]
+  },
+  RECEIPT_SCHEMA: {
+    type: "object",
+    properties: {
+      ticket_id: { type: "string" },
+      case_id: { type: "string" },
+      connector: { type: "string" },
+      status: { type: "string" },
+      filed_at: { type: "string" },
+      pack_pdf: { type: "string" },
+      metadata: { type: "object" }
+    },
+    required: ["ticket_id", "connector", "status", "filed_at"]
   }
 };

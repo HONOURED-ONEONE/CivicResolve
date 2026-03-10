@@ -89,49 +89,88 @@ app.post('/ingest', async (req, res) => {
       // Conditionally call AI Advisory if enabled
       if (config.ENABLE_AI_ADVISORY && config.ENABLE_DRAFT_ASSIST) {
         try {
-          const draftRes = await axios.post(`${config.AI_ADVISORY_SERVICE_URL}/draft_assist`, { mepp });
-          mepp.issue.draft_assistance = draftRes.data.draft;
-          mepp.issue.draft_derived = true;
+          const draftRes = await axios.post(`${config.AI_ADVISORY_SERVICE_URL}/draft_assist`, { mepp }, { timeout: 5000 });
+          if (draftRes.data && draftRes.data.draft) {
+            mepp.issue.draft_assistance = draftRes.data.draft;
+            mepp.issue.draft_derived = true;
+          }
         } catch (e) {
-          console.error("AI Advisory /draft_assist failed, failing open");
+          console.error(`[AI_ADVISORY_FAIL] /draft_assist failed, failing open: ${e.message}`);
         }
       }
       return res.json({ status: "needs_info", gate, mepp });
     }
 
-    // Intelligence service calls
+    // Intelligence service calls (Deterministic, critical path)
     const intOpts = { mepp };
-    const [dedupe, cluster, score, route] = await Promise.all([
-      axios.post(`${config.INTELLIGENCE_SERVICE_URL}/dedupe`, intOpts).then(r => r.data).catch(() => ({})),
-      axios.post(`${config.INTELLIGENCE_SERVICE_URL}/cluster`, intOpts).then(r => r.data).catch(() => ({})),
-      axios.post(`${config.INTELLIGENCE_SERVICE_URL}/score`, intOpts).then(r => r.data).catch(() => ({})),
-      axios.post(`${config.INTELLIGENCE_SERVICE_URL}/route`, intOpts).then(r => r.data).catch(() => ({}))
-    ]);
+    let dedupe, cluster, score, route;
+    
+    try {
+      [dedupe, cluster, score, route] = await Promise.all([
+        axios.post(`${config.INTELLIGENCE_SERVICE_URL}/dedupe`, intOpts).then(r => {
+          if (!r.data || typeof r.data.similarity !== 'number') throw new Error("Invalid dedupe response");
+          return r.data;
+        }),
+        axios.post(`${config.INTELLIGENCE_SERVICE_URL}/cluster`, intOpts).then(r => {
+          if (!r.data || !r.data.cluster_id) throw new Error("Invalid cluster response");
+          return r.data;
+        }),
+        axios.post(`${config.INTELLIGENCE_SERVICE_URL}/score`, intOpts).then(r => {
+          // Changed to accept 'score' as per intelligence-service rather than 'credibility_score' sometimes mapped
+          // we just check if data is an object
+          if (!r.data) throw new Error("Invalid score response");
+          return r.data;
+        }),
+        axios.post(`${config.INTELLIGENCE_SERVICE_URL}/route`, intOpts).then(r => {
+          if (!r.data || !r.data.dest) throw new Error("Invalid route response");
+          return r.data;
+        })
+      ]);
+    } catch (e) {
+      console.error(`[INTELLIGENCE_FAIL] Critical intelligence dependency failed: ${e.message}`);
+      return res.status(502).json({ error: "Upstream intelligence service unavailable or returned invalid data" });
+    }
 
     if (dedupe.duplicate_of) {
       return res.json({ status: "duplicate", duplicate_of: dedupe.duplicate_of });
     }
 
-    const packReq = { mepp, gating: gate, routing: route, cluster };
-    const pack = await axios.post(`${config.INTELLIGENCE_SERVICE_URL}/pack`, packReq).then(r => r.data).catch(() => ({}));
+    let pack;
+    try {
+      const packReq = { mepp, gating: gate, routing: route, cluster };
+      const packRes = await axios.post(`${config.INTELLIGENCE_SERVICE_URL}/pack`, packReq);
+      if (!packRes.data) throw new Error("Invalid pack response");
+      pack = packRes.data;
+    } catch (e) {
+      console.error(`[INTELLIGENCE_FAIL] Pack generation failed: ${e.message}`);
+      return res.status(502).json({ error: "Upstream pack generation failed" });
+    }
 
-    // Connector Service for Filing
-    const filed = await axios.post(`${config.CONNECTOR_SERVICE_URL}/file`, { mepp, pack, route }).then(r => r.data).catch(() => ({ status: 'stub_filed', ticket_id: mepp.case_id }));
+    // Connector Service for Filing (Critical path)
+    let filed;
+    try {
+      const filedRes = await axios.post(`${config.CONNECTOR_SERVICES_URL || config.CONNECTOR_SERVICE_URL}/file`, { mepp, pack, route });
+      if (!filedRes.data || !filedRes.data.ticket_id) throw new Error("Invalid connector response");
+      filed = filedRes.data;
+    } catch (e) {
+      console.error(`[CONNECTOR_FAIL] Filing failed: ${e.message}`);
+      return res.status(502).json({ error: "Upstream connector service failed" });
+    }
 
-    // SLA Status Initialization
+    // SLA Status Initialization (Fail-open)
     await axios.post(`${config.SLA_STATUS_SERVICE_URL}/sla/init`, {
       ticket_id: filed.ticket_id,
       dest: route.dest,
       pack_pdf: pack.pdf_url
-    }).catch(e => console.error("SLA init failed", e.message));
+    }).catch(e => console.error(`[SLA_FAIL] SLA init failed: ${e.message}`));
 
-    // Governance metrics
+    // Governance metrics (Fail-open)
     await axios.post(`${config.GOVERNANCE_PLATFORM_URL}/metrics`, {
       event: 'case_orchestrated',
       ticket_id: filed.ticket_id,
       gate,
       route
-    }).catch(() => {});
+    }).catch(e => console.error(`[GOVERNANCE_FAIL] Metric logging failed: ${e.message}`));
 
     res.json({
       status: "action",
@@ -143,8 +182,8 @@ app.post('/ingest', async (req, res) => {
     });
 
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: error.message });
+    console.error(`[ORCHESTRATOR_ERROR] Unhandled exception: ${error.message}`);
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
